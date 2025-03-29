@@ -67,6 +67,7 @@ KEY_CODE_NONE = $40
 
 KEY_CODE_CTRL = $80
 
+.comment
         * = $01
 
 R6510                                   ; processor port ($01)
@@ -544,7 +545,6 @@ reloadBoard                             ; force loading board if != currentLevel
 
 
 
-.comment
 ;======================== Cartridge Version ===========================
 
 BUGFIX :?= false
@@ -1012,7 +1012,6 @@ inCartBoardsActive                      ; $ff: in-cart boards active, $00: user 
 gameDelayUnused                         ; contains the initial value of gameDelay. Not actually used in the game ($131a)
         .byte ?
 
-.endcomment
 
 boardAction = $0800                     ; current board with replacments for player, enemies, holes
 
@@ -1026,7 +1025,6 @@ highScoreData = $1100                   ; high score data (disk only)
 
 levelSetPacked = $6000                  ; uncompressed, but packed level set (several boards) (page aligned!)
 
-.comment
 ;======================== Cartridge Version ===========================
 Shapes = $1800                          ; expanded shape data:
                                         ;   row 0, col 0 (8 bit) for each shape
@@ -1115,6 +1113,7 @@ VicSprite4Color = $d02b
 VicSprite5Color = $d02c
 VicSprite6Color = $d02d
 VicSprite7Color = $d02e
+.comment
 SidVoice1FreqLb = $d400
 SidVoice1FreqHb = $d401
 SidVoice1PulseWidthLb = $d402
@@ -1144,6 +1143,7 @@ SidAdPaddle1 = $d419
 SidAdPaddle2 = $d41a
 SidVoice3Output = $d41b
 SidVoice3AdsrOutput = $d41c
+.endcomment
 Cia1PortA = $dc00
 Cia1PortB = $dc01
 Cia1PortADataDir = $dc02

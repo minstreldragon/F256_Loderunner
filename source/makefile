@@ -1,13 +1,21 @@
 ### Tools ###
 AS := 64tass
+PGZTOOL := python ../tools/pgztool/pgztool.py
 RM := rm
 
 ### Tool flags ###
 #ASFLAGS := --quiet
 
-loderunner.bin: it.asm constants.h archdep.h
-	$(AS) $(ASFLAGS) -b -L loderunner.listing -o $@ $<
+
+phony: loderunner
+
+loderunner: game.bin lr_manifest.xml
+	$(PGZTOOL) lr_manifest.xml
+
+game.bin: game.asm it.asm constants.h archdep.h
+	$(AS) -b -L lr.listing -o $@ $<
 
 clean:
-	-$(RM) loderunner.bin
+	-$(RM) loderunner.pgz
+	-$(RM) game.bin
 

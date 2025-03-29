@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<pgz outputfile="loderunner.pgz">
+<start address="0x0300" />
+<segments>
+<segment filename="game.bin" address="0x0300" />
+<segment filename="../assets/levels.bin" address="0x030000" />
+</segments>
+</pgz>
