@@ -12,14 +12,14 @@ initF256                                ; initialize F256
         lda #$00                        ; Set the I/O page to #1
         sta MMU_IO_CTRL                 ; ($c000-$dfff is I/O)
 
-        lda #$14                        ; enable Graphics and Tile engines. Disable Text
+        lda #$0c                        ; enable Graphics and Bitmap engines. Disable Text
         sta VKY_MSTR_CTRL_0             ; save that to VICKY master control register 0
         lda #$01                        ; set CLK70, for 320x200 display size
         sta VKY_MSTR_CTRL_1             ; save that to VICKY master control register 0
 
-        lda #$04                        ; Layer 0: Tile map 0, Layer 1: unused
+        lda #$10                        ; Layer 0: Bitmap 0, Layer 1: unused
         sta VKY_LAYER_CTRL_0
-        lda #$00                        ; Layer 2: unused
+        lda #$01                        ; Layer 2: unused
         sta VKY_LAYER_CTRL_1
 
         lda #$01
@@ -35,6 +35,22 @@ initF256                                ; initialize F256
         sta VKY_BKG_COL_G
         sta VKY_BKG_COL_R
 
+        ; setup Bitmap 0
+
+        lda #$01
+        sta VKY_BM0_CTRL                ; enable bitmap 0
+        lda #$00
+        sta VKY_BM1_CTRL                ; disable bitmap 1
+        sta VKY_BM2_CTRL                ; disable bitmap 2
+
+        lda #$00                        ; displayed bitmap: $010000
+        sta VKY_BM0_ADDR_L
+        lda #$00
+        sta VKY_BM0_ADDR_M
+        lda #$01
+        sta VKY_BM0_ADDR_H
+
+.comment
         ; set tile set #0
 
         lda #$00                        ; displayed tileset at $010000
@@ -74,8 +90,55 @@ initF256                                ; initialize F256
         sta VKY_TM0_ADDR_M
         lda #$00
         sta VKY_TM0_ADDR_H
+.endcomment
 
         jsr setColorLut                 ; setup color LUT
+        jsr clearBm0
+
+.enc "high"
+.comment
+        lda #$05
+        sta zpCursorRow
+        lda #$00
+        sta zpCursorCol
+        jsr printString
+        .text "LODE RUNNER",$00
+
+        lda #$07
+        sta zpCursorRow
+        lda #$01
+        sta zpCursorCol
+        jsr printString
+        .text "LODE RUNNER",$00
+.endcomment
+
+        lda #$00
+        sta zpCursorRow
+        lda #$00
+        sta zpCursorCol
+        lda #$01
+        jsr replaceTileBm0
+
+        lda #$01
+        sta zpCursorRow
+        lda #$00
+        sta zpCursorCol
+        lda #$02
+        jsr replaceTileBm0
+
+        lda #$02
+        sta zpCursorRow
+        lda #$00
+        sta zpCursorCol
+        lda #$03
+        jsr replaceTileBm0
+
+        lda #$03
+        sta zpCursorRow
+        lda #$00
+        sta zpCursorCol
+        lda #$04
+        jsr replaceTileBm0
 
         rts
 
@@ -295,14 +358,156 @@ clut_start
 clut_end
 
 
+clearBm0
+        ; loop over eight banks $010000 - $01ffff
+        ; Fill the whole area with #$00
+
+        lda #$10                ; start at phys. memory $010000
+        sta _physBank
+_clearBmTilesetL1
+        jsr setSwapArea
+        lda #$a0                ; start filling at logical $a000
+        sta _dest+2             ; high byte of destination
+        ldx #$20                ; for all banks but the last fill $20 pages
+        lda _physBank
+        cmp #$1e
+        bne _notLastBank
+        ldx #$1a                ; for the last bank, only need to fill $1a pages
+_notLastBank
+        lda #$00                ; fill value: $00
+_clearBmTilesetL2
+;        txa                     ; TODO: TESTING ONLY
+;        and #$0f                ; TODO: TESTING ONLY fill tile with color
+        ldy #$00
+_dest
+        sta $a000,y
+        iny
+        bne _dest
+
+        inc _dest+2             ; inc high byte of destination
+        dex
+        bne _clearBmTilesetL2
+
+        inc _physBank
+        inc _physBank
+        lda _physBank
+        cmp #$20
+        bne _clearBmTilesetL1
+
+        jsr resetSwapArea       ; restore swap area at $a000
+        rts
+
+_physBank
+        .byte $00
+
+
+replaceTileBm0
+        asl                             ; shape id as 16 bit pointer
+        tay
+        lda TblShapePtr+0,y             ; low byte of shape definition
+        sta _copyShapeToBitmapL2+1      ; self modify code (speed)
+        lda TblShapePtr+1,y             ; high byte of shape definition
+        sta _copyShapeToBitmapL2+2      ; self modify code (speed)
+
+        ldx zpCursorCol                 ; calculate x-offset in bitmap
+        lda pixelPosByBoardCol,x
+        asl
+        sta zpBmpPtr+0
+        lda #$00
+        rol
+        sta zpBmpPtr+1
+
+        lda zpCursorRow
+        asl
+        tay
+        lda TblBmpLinePtr+0,y           ; Bitmap start position (from Row)
+        clc
+        adc zpBmpPtr+0
+        sta zpBmpPtr+0
+        lda TblBmpLinePtr+1,y
+        adc zpBmpPtr+1
+        ora #$a0
+        sta zpBmpPtr+1
+
+        ldy zpCursorRow
+        lda TblBmpLinePage,y
+        asl
+        clc
+        adc #$10
+        jsr setBigSwapArea
+
+        lda #SHAPE_HEIGHT
+        sta zpShapeRowIter              ; iterator over rows in shape
+        ldx #$00                        ; index into shifted shape hopper
+_copyShapeToBitmapL1
+        ldy #$00
+_copyShapeToBitmapL2
+        lda $c0de,X                     ; self-modified source pointer
+        sta (zpBmpPtr),y
+        inx
+        iny
+        cpy #SHAPE_WIDTH
+        bne _copyShapeToBitmapL2
+
+        lda zpBmpPtr+0
+        clc
+        adc #<320
+        sta zpBmpPtr+0
+        lda zpBmpPtr+1
+        adc #>320
+        sta zpBmpPtr+1
+        dec zpShapeRowIter
+        bne _copyShapeToBitmapL1
+
+        jsr resetBigSwapArea
+        rts
+
+TblShapePtr
+        .word range(NUM_SHAPES) * SHAPE_WIDTH * SHAPE_HEIGHT + shapesF256
+        .fill NUM_SHAPES * 2
+
+TblBmpLinePtr
+        .word ($00 * SHAPE_HEIGHT * 320) & $1fff
+        .word ($01 * SHAPE_HEIGHT * 320) & $1fff
+        .word ($02 * SHAPE_HEIGHT * 320) & $1fff
+        .word ($03 * SHAPE_HEIGHT * 320) & $1fff
+        .word ($04 * SHAPE_HEIGHT * 320) & $1fff
+        .word ($05 * SHAPE_HEIGHT * 320) & $1fff
+        .word ($06 * SHAPE_HEIGHT * 320) & $1fff
+        .word ($07 * SHAPE_HEIGHT * 320) & $1fff
+        .word ($08 * SHAPE_HEIGHT * 320) & $1fff
+        .word ($09 * SHAPE_HEIGHT * 320) & $1fff
+        .word ($0a * SHAPE_HEIGHT * 320) & $1fff
+        .word ($0b * SHAPE_HEIGHT * 320) & $1fff
+        .word ($0c * SHAPE_HEIGHT * 320) & $1fff
+        .word ($0d * SHAPE_HEIGHT * 320) & $1fff
+        .word ($0e * SHAPE_HEIGHT * 320) & $1fff
+        .word ($0f * SHAPE_HEIGHT * 320) & $1fff
+
+TblBmpLinePage
+        .byte ($00 * SHAPE_HEIGHT * 320) >> 13
+        .byte ($01 * SHAPE_HEIGHT * 320) >> 13
+        .byte ($02 * SHAPE_HEIGHT * 320) >> 13
+        .byte ($03 * SHAPE_HEIGHT * 320) >> 13
+        .byte ($04 * SHAPE_HEIGHT * 320) >> 13
+        .byte ($05 * SHAPE_HEIGHT * 320) >> 13
+        .byte ($06 * SHAPE_HEIGHT * 320) >> 13
+        .byte ($07 * SHAPE_HEIGHT * 320) >> 13
+        .byte ($08 * SHAPE_HEIGHT * 320) >> 13
+        .byte ($09 * SHAPE_HEIGHT * 320) >> 13
+        .byte ($0a * SHAPE_HEIGHT * 320) >> 13
+        .byte ($0b * SHAPE_HEIGHT * 320) >> 13
+        .byte ($0c * SHAPE_HEIGHT * 320) >> 13
+        .byte ($0d * SHAPE_HEIGHT * 320) >> 13
+        .byte ($0e * SHAPE_HEIGHT * 320) >> 13
+        .byte ($0f * SHAPE_HEIGHT * 320) >> 13
+
+.comment
         .word ?                         ; align tile_map_tile to word
 tile_map_tile_window
         .fill 22*14*2, [$24,$00]        ; use tile set 0
+.endcomment
 
-
-
-.comment
-.include "it.asm"
 
 resetSwapArea                   ; swap area at $a000
         lda #$0a
@@ -316,8 +521,51 @@ setSwapArea
 
         lda #$03
         sta MMU_MEM_CTRL
+
+        lda MMU_IO_CTRL                 ; ($c000-$dfff is I/O)
+        and #%11111011                  ; enable I/O
+        sta MMU_IO_CTRL                 ; ($c000-$dfff is I/O)
         rts
 
+setBigSwapArea
+        lsr                     ; convert address [24..31] to MMU bank
+        pha
+        lda #$b3                ; active MLUT = 3, Edit MLUT #3
+        sta MMU_MEM_CTRL
+        lda MMU_MEM_BANK_6      ; MMU Edit Register for bank 6 ($C000 - $DFFF)
+        sta defaultBank6
+        pla
+        sta MMU_MEM_BANK_5      ; MMU Edit Register for bank 5 ($A000 - $BFFF)
+        clc
+        adc #$01
+        sta MMU_MEM_BANK_6      ; MMU Edit Register for bank 6 ($C000 - $DFFF)
+
+        lda #$03
+        sta MMU_MEM_CTRL
+
+        lda MMU_IO_CTRL                 ; ($c000-$dfff is I/O)
+        ora #%00000100                  ; disable I/O
+        sta MMU_IO_CTRL                 ; ($c000-$dfff is I/O)
+        rts
+
+resetBigSwapArea
+        lda #$b3                ; active MLUT = 3, Edit MLUT #3
+        sta MMU_MEM_CTRL
+
+        lda #$08 >> 1
+        sta MMU_MEM_BANK_5      ; MMU Edit Register for bank 5 ($A000 - $BFFF)
+        lda defaultBank6
+        sta MMU_MEM_BANK_6      ; MMU Edit Register for bank 6 ($C000 - $DFFF)
+
+        lda #$03
+        sta MMU_MEM_CTRL
+        rts
+
+defaultBank6
+        .byte $00
+
+
+.comment
 resetSwapArea8000               ; swap area at $8000
         lda #$08
 setSwapArea8000
