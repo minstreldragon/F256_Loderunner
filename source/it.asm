@@ -5528,14 +5528,12 @@ printDigit
         ldx zpBitmapPage2               ; active bitmap page for printing
         cpx #>Bitmap1
         beq printTileIncCol
-;;;        jsr replaceTileBitmap0
-        jsr replaceTileBm0
+        jsr replaceTileBitmap0
         inc zpCursorCol
         rts
 
 printTileIncCol
-;;;        jsr replaceTileBitmap1
-        jsr replaceTileBm0
+        jsr replaceTileBitmap1
         inc zpCursorCol
         rts
 
@@ -5586,13 +5584,11 @@ printChar
         ldx zpBitmapPage2               ; active bitmap page for printing
         cpx #>Bitmap1
         beq _printCharBitmap1
-;;;        jsr replaceTileBitmap0          ; print to bitmap 0 (displayed)
-        jsr replaceTileBm0
+        jsr replaceTileBitmap0          ; print to bitmap 0 (displayed)
         inc zpCursorCol
         rts
 _printCharBitmap1
-;;;        jsr replaceTileBitmap1          ; print to bitmap 1 (buffer)
-        jsr replaceTileBm0
+        jsr replaceTileBitmap1          ; print to bitmap 1 (buffer)
         inc zpCursorCol
         rts
 
@@ -5713,6 +5709,10 @@ replaceTileBitmap1
         sta zpShapeId                   ; current shape Id (before conversion)
         lda #>Bitmap1                   ; print to Bitmap1
 printTileJ1
+        lda zpShapeId                   ; F256: force printing tile on bitmap 0
+        jsr replaceTileBm0              ; F256: force printing tile on bitmap 0
+
+.comment
         sta zpBitmapPage                ; destination bitmap page
         ldy zpCursorRow
         ldx zpCursorCol
@@ -5751,6 +5751,7 @@ _copyShapeToBitmapL1
         inc zpPixelPosY                 ; inc destination line
         dec zpShapeRowIter              ; dec shape row iterator
         bne _copyShapeToBitmapL1
+.endcomment
         rts
 
 ;============== begin unreachable code ==============
