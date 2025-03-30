@@ -253,9 +253,9 @@ _attractStateLoopJ1
         sta zpLongDelayCtr
 
 _longDelayLoop
-        lda Cia1PortA                   ; read joystick port 2
-        and #$10                        ; fire button pressed?
-        beq enterPlayGameMode           ; yes -> play the game
+;;;        lda Cia1PortA                   ; read joystick port 2
+;;;        and #$10                        ; fire button pressed?
+;;;        beq enterPlayGameMode           ; yes -> play the game
         lda keyboardCode                ; keyboard matrix code (no key: 0)
         cmp #KEY_CODE_CTRL+KEY_CODE_E   ; <Ctrl>-E: Enter Edit mode
         bne _checkKeyPressed            ; no ->
@@ -360,6 +360,7 @@ tabEnemyTrappedDuration                 ; # of moves an enemy is trapped in a ho
 
 
 displayTitleScreen                      ; display the title screen
+.comment
         jsr clearBitmap0                ; clear bitmap 0 and turn off sprites
         lda #(COL_BLACK << 4 | COL_BLACK)
         jsr setColorMemory
@@ -438,6 +439,7 @@ _skipIncDst
         lda zpUnpackedDataPtr+1
         cmp #$3f
         bcc _unpackRleDataL1
+.endcomment
         jmp attractStateLoop
 
 handleJinglePlayback
@@ -5330,9 +5332,11 @@ tabEnemySpriteDisable
 
 clearBitmapsPrintFooter
         jsr clearBitmap0                ; clear bitmap 0 and turn off sprites
-        jsr clearBitmap1                ; clear bitmap 1
+;;;        jsr clearBitmap1                ; clear bitmap 1
 
 printBoardFooter                        ; draw solid ground and print status line
+        jsr drawDivider                 ; F256 archdep
+.comment
         ldx #$22                        ; solid ground has $22 columns of $aa byte
         lda zpBitmapPage2               ; active bitmap page for printing
         cmp #>Bitmap1
@@ -5405,9 +5409,10 @@ _skipInc2
         sta _staBmpDst2+2
         lda #$98
         sta _staBmpDst2+1
+.endcomment
 
 _printStatusLine
-        lda #BOARD_HEIGHT
+        lda #BOARD_HEIGHT+1
         sta zpCursorRow
         lda #$00
         sta zpCursorCol
@@ -5428,7 +5433,7 @@ printLives
 printThreeDigitNumber
         stx zpCursorCol                 ; set cursor column
         jsr convertHexToDecimal         ; convert hex number to 3 digit decimal
-        lda #BOARD_HEIGHT               ; row offset for status: Score, Men, Level
+        lda #BOARD_HEIGHT+1             ; row offset for status: Score, Men, Level
         sta zpCursorRow
         lda digitHigh
         jsr printDigit
@@ -5460,7 +5465,7 @@ addPrintScore
 
         lda #$05                        ; column
         sta zpCursorCol
-        lda #$10                        ; row
+        lda #BOARD_HEIGHT+1             ; row
         sta zpCursorRow
         lda score+3
         jsr splitBcdIntoDigits
@@ -5523,12 +5528,14 @@ printDigit
         ldx zpBitmapPage2               ; active bitmap page for printing
         cpx #>Bitmap1
         beq printTileIncCol
-        jsr replaceTileBitmap0
+;;;        jsr replaceTileBitmap0
+        jsr replaceTileBm0
         inc zpCursorCol
         rts
 
 printTileIncCol
-        jsr replaceTileBitmap1
+;;;        jsr replaceTileBitmap1
+        jsr replaceTileBm0
         inc zpCursorCol
         rts
 
@@ -5579,11 +5586,13 @@ printChar
         ldx zpBitmapPage2               ; active bitmap page for printing
         cpx #>Bitmap1
         beq _printCharBitmap1
-        jsr replaceTileBitmap0          ; print to bitmap 0 (displayed)
+;;;        jsr replaceTileBitmap0          ; print to bitmap 0 (displayed)
+        jsr replaceTileBm0
         inc zpCursorCol
         rts
 _printCharBitmap1
-        jsr replaceTileBitmap1          ; print to bitmap 1 (buffer)
+;;;        jsr replaceTileBitmap1          ; print to bitmap 1 (buffer)
+        jsr replaceTileBm0
         inc zpCursorCol
         rts
 
@@ -6116,7 +6125,7 @@ pixelPosByBoardRow                      ; y-positions in pixel rows
         .byte $0d * SHAPE_HEIGHT
         .byte $0e * SHAPE_HEIGHT
         .byte $0f * SHAPE_HEIGHT
-        .byte $b5                       ; *not* $10 * SHAPE_HEIGHT
+        .byte $10 * SHAPE_HEIGHT + 5    ; *not* $10 * SHAPE_HEIGHT
 
 pixelPosByBoardCol                      ; x-positions in double pixels
         .byte $0a + $00 * SHAPE_WIDTH / 2
@@ -6271,6 +6280,8 @@ getBitmapPtrsBoth                       ; get both bitmap pointers for pos X,Y
         rts
 
 clearBitmap0                            ; clear bitmap 0 and turn off sprites
+        jsr clearBm0                    ; F256: clear bitmap 0
+.comment
         lda #>Bitmap0                   ; start page
         ldx #$00
         stx VicSpriteEnable             ; disable sprites
@@ -6293,6 +6304,7 @@ _clearMemoryLoop
         inc zpMemPtr+1
         cpx zpMemPtr+1                  ; X: end page
         bne _clearMemoryLoop
+.endcomment
         rts
 
 boardLayoutOffsetLb

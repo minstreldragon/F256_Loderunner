@@ -400,15 +400,45 @@ _dest
 _physBank
         .byte $00
 
+drawDivider
+        lda #0
+        sta zpCursorCol
+        lda #BOARD_HEIGHT
+        sta zpCursorRow
+        jsr getBitmapPtrF256
+        lda #$04
+        sta zpShapeRowIter              ; iterator over rows in shape
+_drawDividerL1
+        ldy #$00
+        lda #COL_RED
+_drawDividerL2
+        sta (zpBmpPtr),y
+        iny
+        bne _drawDividerL2
 
-replaceTileBm0
-        asl                             ; shape id as 16 bit pointer
-        tay
-        lda TblShapePtr+0,y             ; low byte of shape definition
-        sta _copyShapeToBitmapL2+1      ; self modify code (speed)
-        lda TblShapePtr+1,y             ; high byte of shape definition
-        sta _copyShapeToBitmapL2+2      ; self modify code (speed)
+        inc zpBmpPtr+1
+_drawDividerL3
+        sta (zpBmpPtr),y
+        iny
+        cpy #24
+        bne _drawDividerL3
+        dec zpBmpPtr+1
 
+        lda zpBmpPtr+0
+        clc
+        adc #<320
+        sta zpBmpPtr+0
+        lda zpBmpPtr+1
+        adc #>320
+        sta zpBmpPtr+1
+        dec zpShapeRowIter
+        bne _drawDividerL1
+
+        jsr resetBigSwapArea
+        rts
+
+
+getBitmapPtrF256
         ldx zpCursorCol                 ; calculate x-offset in bitmap
         lda pixelPosByBoardCol,x
         asl
@@ -435,6 +465,18 @@ replaceTileBm0
         clc
         adc #$10
         jsr setBigSwapArea
+        rts
+
+
+replaceTileBm0
+        asl                             ; shape id as 16 bit pointer
+        tay
+        lda TblShapePtr+0,y             ; low byte of shape definition
+        sta _copyShapeToBitmapL2+1      ; self modify code (speed)
+        lda TblShapePtr+1,y             ; high byte of shape definition
+        sta _copyShapeToBitmapL2+2      ; self modify code (speed)
+
+        jsr getBitmapPtrF256
 
         lda #SHAPE_HEIGHT
         sta zpShapeRowIter              ; iterator over rows in shape
@@ -483,6 +525,8 @@ TblBmpLinePtr
         .word ($0d * SHAPE_HEIGHT * 320) & $1fff
         .word ($0e * SHAPE_HEIGHT * 320) & $1fff
         .word ($0f * SHAPE_HEIGHT * 320) & $1fff
+        .word ($10 * SHAPE_HEIGHT * 320) & $1fff
+        .word (($10 * SHAPE_HEIGHT + 5) * 320) & $1fff
 
 TblBmpLinePage
         .byte ($00 * SHAPE_HEIGHT * 320) >> 13
@@ -501,6 +545,8 @@ TblBmpLinePage
         .byte ($0d * SHAPE_HEIGHT * 320) >> 13
         .byte ($0e * SHAPE_HEIGHT * 320) >> 13
         .byte ($0f * SHAPE_HEIGHT * 320) >> 13
+        .byte ($10 * SHAPE_HEIGHT * 320) >> 13          ; divider line
+        .byte (($10 * SHAPE_HEIGHT + 5) * 320) >> 13    ; score line
 
 .comment
         .word ?                         ; align tile_map_tile to word
