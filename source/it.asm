@@ -165,11 +165,12 @@ _levelNotFinished
         lda playerAlive                 ; 0: player dead, 1: player alive
         beq playerDies
 _delayGameLoop
-        lda irqFrameCounter             ; free running counter increased with each IRQ
-        cmp gameDelay                   ; 3: fastest, 8: slowest
-        bcc _delayGameLoop
-        lda #$03
-        sta irqFrameCounter             ; free running counter increased with each IRQ
+        jsr delayF256                   ; EXPERIMENTAL
+;;;        lda irqFrameCounter             ; free running counter increased with each IRQ
+;;;        cmp gameDelay                   ; 3: fastest, 8: slowest
+;;;        bcc _delayGameLoop
+;;;        lda #$03
+;;;        sta irqFrameCounter             ; free running counter increased with each IRQ
         jmp playStateLoop
 
 _finishLevel
@@ -178,7 +179,8 @@ _finishLevel
 _waitFinishTune
         lda tuneDataEnd                 ; offset: end of current tune
         cmp tunePlayOffset              ; offset: playback position in current tune
-        bne _waitFinishTune             ; wait until tune has finished playing
+                                        ; TODO: FIX
+;;;        bne _waitFinishTune             ; wait until tune has finished playing
 
         jsr selectNextJingle            ; select next "gold complete" jingle to play
         inc lives                       ; add bonus live
@@ -553,6 +555,7 @@ _initJingleDataExit
 
 
 randomizeGoldJinglePitchVal
+        rts                             ; TODO - EXPERIMENTAL
         sta jingleGoldMinimumPitchDelta ; minimum delta between consecutive pitch values ($04)
 _waitBeamPosition
         lda VicRasterValue
@@ -822,6 +825,8 @@ _clearSpriteDefsL                       ; clear sprite definitions
         rts
 
 setColorMemory
+        rts                             ; F256: remove this function
+.comment
         sta multiColorValues            ; store multi color values
         lda VicScreenCtrlReg2
         ora #$10                        ; enable multi color mode
@@ -843,6 +848,7 @@ _initColorRamL
         dey
         bne _initColorRamL
         rts
+.endcomment
 
 nmiHandler
         rti                             ; NMI handler (do nothing)
@@ -1243,10 +1249,10 @@ warningUnsavedLevelChanges              ; warn about unsaved level changes
         rts
 _unsavedChanges
         jsr clearBitmap0                ; clear bitmap 0 and turn off sprites
-        lda multiColorValues            ; store current multi color values
-        pha
-        lda #(COL_YELLOW << 4 | COL_CYAN)
-        jsr setColorMemory
+;;;        lda multiColorValues            ; store current multi color values
+;;;        pha
+;;;        lda #(COL_YELLOW << 4 | COL_CYAN)
+;;;        jsr setColorMemory
         lda #>Bitmap0                   ; print to bitmap 0
         sta zpBitmapPage2               ; set active bitmap page for printing text
         lda #$00
@@ -1268,7 +1274,7 @@ _promptYesNoL
         bne _promptYesNoL
         jsr saveCurrentBoard            ; save the current board
 _continueAfterSave
-        pla                             ; restore current multi color values
+;;;        pla                             ; restore current multi color values
         jmp setColorMemory
 
 assertUserDisk
@@ -1288,8 +1294,8 @@ _assertUserDiskJ2
 
 warningMasterDiskNotAllowed             ; message: not allowed to manipulate master disk
         jsr clearBitmap0                ; clear bitmap 0 and turn off sprites
-        lda multiColorValues            ; store current multi color values
-        pha
+;;;        lda multiColorValues            ; store current multi color values
+;;;        pha
         lda #>Bitmap0                   ; print to bitmap 0
         sta zpBitmapPage2               ; set active bitmap page for printing text
         lda #(COL_YELLOW << 4 | COL_CYAN)
@@ -1317,13 +1323,13 @@ dialogHitKeyToContinue
         lda #$00
         sta boardRequiresFullInit       ; 0: board has been initialized before, != 0: board requires full init
         jsr initBoardState              ; initialize the board state (player, #enemies, #ladders etc)
-        pla                             ; restore current multi color values
+;;;        pla                             ; restore current multi color values
         jmp setColorMemory              ; set color memory and return
 
 warningUnknownDisk                      ; message: disk is not a lode runner data disk
         jsr clearBitmap0                ; clear bitmap 0 and turn off sprites
-        lda multiColorValues            ; store current multi color values
-        pha
+;;;        lda multiColorValues            ; store current multi color values
+;;;        pha
         lda #(COL_YELLOW << 4 | COL_CYAN)
         jsr setColorMemory
         lda #>Bitmap0                   ; print to bitmap 0
@@ -2455,9 +2461,11 @@ _skipIrisAnimation
         bne _initBoardQuickRedrawJ1
 
 _initBoardQuickRedraw
+.comment
         lda irisAnimationOn             ; $ff: iris animation on, $00: turned off
         beq _skipIrisAnimation
         jsr doIrisAnimation             ; do the iris animation effect
+.endcomment
 
 _initBoardQuickRedrawJ1
         ldy #BOARD_HEIGHT-1
@@ -3578,7 +3586,9 @@ _checkPlayerAnimPhaseMax
 
 displayPlayerCheckEnemy                 ; display player, check for enemy collision
         jsr prepareDisplayPlayer
-        jsr pasteTileBitmap0            ; paste tile over bitmap 0 (no erase)
+;;;        jsr pasteTileBitmap0            ; paste tile over bitmap 0 (no erase)
+        lda #$00                        ; EXPERIMENTAL
+        jsr printSpriteF256             ; EXPERIMENTAL
         lda zpPlayerEnemyCollision      ; 0: no collision of player and enemy; 1: collision detected
         beq _exit                       ; no collision -> exit
         lda playerNoGoldPickedUp        ; 0: gold pick up in process, 1: no gold picked up
@@ -3901,7 +3911,9 @@ _handleEnemyFallJ1
 
 displayEnemy
         jsr prepareDisplayEnemy
-        jsr pasteTileBitmap0            ; paste tile over bitmap 0 (no erase)
+;;;        jsr pasteTileBitmap0            ; paste tile over bitmap 0 (no erase)
+        lda enemyIndex                  ; EXPERIMENTAL current enemy, index
+        jsr printSpriteF256             ; EXPERIMENTAL
         jmp saveEnemyState
 
 handleEnemyFallNextBlock
@@ -3986,7 +3998,9 @@ _handleEnemyFallJ3
         lda #SHAPE_ENEMY
         sta (zpBoardActionPtr),y
         jsr prepareDisplayEnemy
-        jsr pasteTileBitmap0            ; paste tile over bitmap 0 (no erase)
+;;;        jsr pasteTileBitmap0            ; paste tile over bitmap 0 (no erase)
+        lda enemyIndex                  ; EXPERIMENTAL current enemy, index
+        jsr printSpriteF256             ; EXPERIMENTAL
         jmp saveEnemyState
 
 enemyTriesEscapeHole
@@ -3998,7 +4012,9 @@ enemyTriesEscapeHole
         lda _tabEnemyInHoleWiggleX-7,y  ; make enemy wiggle in hole by altering zpEnemyStepX
         sta zpEnemyStepX                ; current enemy, X position (fine)
         jsr prepareDisplayEnemy
-        jsr pasteTileBitmap0            ; paste tile over bitmap 0 (no erase)
+;;;        jsr pasteTileBitmap0            ; paste tile over bitmap 0 (no erase)
+        lda enemyIndex                  ; EXPERIMENTAL current enemy, index
+        jsr printSpriteF256             ; EXPERIMENTAL
         jmp saveEnemyState
 
 _tabEnemyInHoleWiggleX
@@ -4103,7 +4119,9 @@ setEnemyAnimationClimb
         ldx #EN_ANIM_PHASE_CLIMB_1
         jsr updateEnemyAnimPhase
         jsr prepareDisplayEnemy
-        jsr pasteTileBitmap0            ; paste tile over bitmap 0 (no erase)
+;;;        jsr pasteTileBitmap0            ; paste tile over bitmap 0 (no erase)
+        lda enemyIndex                  ; EXPERIMENTAL current enemy, index
+        jsr printSpriteF256             ; EXPERIMENTAL
         jmp saveEnemyState
 
 
@@ -4248,7 +4266,9 @@ _moveEnemyLeftAnimateBar
 _moveEnemyLeftAnimateJ1
         jsr updateEnemyAnimPhase
         jsr prepareDisplayEnemy
-        jsr pasteTileBitmap0            ; paste tile over bitmap 0 (no erase)
+;;;        jsr pasteTileBitmap0            ; paste tile over bitmap 0 (no erase)
+        lda enemyIndex                  ; EXPERIMENTAL current enemy, index
+        jsr printSpriteF256             ; EXPERIMENTAL
         jmp saveEnemyState
 
 
@@ -4328,7 +4348,9 @@ _moveEnemyRightAnimateBar
 _moveEnemyRightAnimateJ1
         jsr updateEnemyAnimPhase
         jsr prepareDisplayEnemy
-        jsr pasteTileBitmap0            ; paste tile over bitmap 0 (no erase)
+;;;        jsr pasteTileBitmap0            ; paste tile over bitmap 0 (no erase)
+        lda enemyIndex                  ; EXPERIMENTAL current enemy, index
+        jsr printSpriteF256             ; EXPERIMENTAL
         jmp saveEnemyState
 
 
@@ -5795,6 +5817,7 @@ andMaskShiftTblRight
         .byte %00000000
 
 cookieCutTileFromBuffer
+        rts                             ; TODO EXPERIMENTAL
         sty zpPixelPosY                 ; pixel position Y
         sta zpShapeId                   ; current shape ID
         jsr getShapeBitmapOffsetX       ; calculate horizontal pixel position
@@ -5866,6 +5889,8 @@ _copyShapeToBitmapL2
 ;=============== end unreachable code ==============
 
 pasteTileBitmap0                        ; paste tile over bitmap 0 (no erase)
+        jsr replaceTileBm0              ; TODO EXPERIMENTAL F256: force printing tile on bitmap 0
+        rts
 ; print shape at pixel position (?)
 ; load shape into sprite data
         sty zpPixelPosY                 ; pixel position Y

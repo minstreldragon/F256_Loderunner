@@ -3,6 +3,7 @@
 <start address="0x0300" />
 <segments>
 <segment filename="game.bin" address="0x0300" />
+<segment filename="../assets/lr_sprites.bin" address="0xa000" />
 <segment filename="../assets/levels.bin" address="0x030000" />
 </segments>
 </pgz>

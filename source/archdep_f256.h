@@ -3,6 +3,7 @@
 .include "common/api.asm"
 .include "common/f256jr.asm"
 .include "common/f256_tiles.asm"
+.include "common/f256_sprites.asm"
 .include "common/f256_rtc.asm"
 .include "common/f256_via.asm"
 .include "common/f256_irq.asm"
@@ -42,6 +43,8 @@ KEY_RETURN = $8d                ; return key
 KEY_BACKSPACE = $88             ; Key combination: C= + Q
 KEY_ESCAPE = $df                ; RUN/STOP key
 KEY_ARROW_UP = KEY_NORTH
+
+spritesF256 = $a000
 
 .comment
 ; kernel structures

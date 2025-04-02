@@ -12,7 +12,7 @@ initF256                                ; initialize F256
         lda #$00                        ; Set the I/O page to #1
         sta MMU_IO_CTRL                 ; ($c000-$dfff is I/O)
 
-        lda #$0c                        ; enable Graphics and Bitmap engines. Disable Text
+        lda #$2c                        ; enable Sprite, Graphics, Bitmap engines. Disable Text
         sta VKY_MSTR_CTRL_0             ; save that to VICKY master control register 0
         lda #$01                        ; set CLK70, for 320x200 display size
         sta VKY_MSTR_CTRL_1             ; save that to VICKY master control register 0
@@ -94,6 +94,9 @@ initF256                                ; initialize F256
 
         jsr setColorLut                 ; setup color LUT
         jsr clearBm0
+
+        jsr initSpritesF256
+        jsr testSprites                 ; EXPERIMENTAL: test sprites
 
 .enc "high"
 .comment
@@ -312,6 +315,8 @@ setColorLut
         lda #$01                        ; Set the I/O page to #1
         sta MMU_IO_CTRL                 ; ($c000-$dfff is I/O)
 
+        ; main clut (and player sprites)
+
         lda #<clut_start-1
         sta zpSrc+0
         lda #>clut_start-1
@@ -324,6 +329,24 @@ setColorLut
 
         ldy #<clut_end - clut_start
         jsr SmallMemCopy
+
+        ; clut enemy (enemy sprites)
+
+        lda #<clut_enemy-1
+        sta zpSrc+0
+        lda #>clut_enemy-1
+        sta zpSrc+1
+
+        lda #<VKY_GR_CLUT_1-1
+        sta zpDst+0
+        lda #>VKY_GR_CLUT_1-1
+        sta zpDst+1
+
+        ldy #<clut_enemy_end - clut_enemy
+        jsr SmallMemCopy
+
+        lda #$00                        ; Set the I/O page to #0
+        sta MMU_IO_CTRL                 ; ($c000-$dfff is I/O)
 
         rts
 
@@ -356,6 +379,12 @@ clut_start
         .byte $e0,$e0,$e0,$00    ; light grey
         .byte $00,$00,$00,$00    ; black (text)
 clut_end
+
+clut_enemy
+        ; order: blue, green, red, (reserved)
+        .byte $00,$00,$00,$00    ; transparent
+        .byte $f8,$fe,$a0,$00    ; cyan
+clut_enemy_end
 
 
 clearBm0
@@ -568,9 +597,11 @@ setSwapArea
         lda #$03
         sta MMU_MEM_CTRL
 
+.comment
         lda MMU_IO_CTRL                 ; ($c000-$dfff is I/O)
         and #%11111011                  ; enable I/O
         sta MMU_IO_CTRL                 ; ($c000-$dfff is I/O)
+.endcomment
         rts
 
 setBigSwapArea
@@ -605,11 +636,168 @@ resetBigSwapArea
 
         lda #$03
         sta MMU_MEM_CTRL
+
+        lda MMU_IO_CTRL                 ; ($c000-$dfff is I/O)
+        and #%11111011                  ; enable I/O
+        sta MMU_IO_CTRL                 ; ($c000-$dfff is I/O)
+
         rts
 
 defaultBank6
         .byte $00
 
+testSprites
+        ; A = sprite index (0 = player, 1..4 = enemies)
+        ; X = pixel pos X / 2
+        ; Y = pixel pos Y
+        lda #3
+        sta zpPlayerAnimPhase           ; player animation phase
+        lda #0                          ; player
+        ldx #140
+        ldy #100
+        jsr printSpriteF256
+
+        lda #5
+        sta zpEnemyAnimPhase
+        lda #1                          ; player
+        ldx #20
+        ldy #10
+        jsr printSpriteF256
+
+        rts
+
+
+.comment
+        lda #<spritesF256
+        sta VKY_SP0_AD_L
+        lda #>spritesF256
+        sta VKY_SP0_AD_M
+        lda #$00
+        sta VKY_SP0_AD_H
+        lda #<32
+        sta VKY_SP0_POS_X_L
+        lda #>32
+        sta VKY_SP0_POS_X_H
+        lda #<32
+        sta VKY_SP0_POS_Y_L
+        lda #>32
+        sta VKY_SP0_POS_Y_H
+        lda #%01000001          ; size: 16x16, layer 0, LUT 0, Enable
+        sta VKY_SP0_CTRL
+.endcomment
+
+        rts
+
+delayF256
+        lda #$5
+        sta _delay
+_delayL1
+        ldx #$00
+        ldy #$00
+_delayL2
+        dex
+        bne _delayL2
+        dey
+        bne _delayL2
+        ldy _delay
+        dey
+        sty _delay
+        bne _delayL1
+        rts
+
+_delay
+        .byte $00
+
+
+initSpritesF256
+        lda #$00                        ; Set the I/O page to #0
+        sta MMU_IO_CTRL                 ; ($c000-$dfff is I/O)
+
+        ldy #$00                        ; iterator
+_initSpriteL
+        lda #<spritesF256
+        sta VKY_SP0_AD_L,y
+        lda #>spritesF256
+        sta VKY_SP0_AD_M,y
+        lda #$00
+        sta VKY_SP0_AD_H,y
+
+        sta VKY_SP0_POS_X_L,y           ; initially hide sprite in the border
+        sta VKY_SP0_POS_X_H,y
+        sta VKY_SP0_POS_Y_L,y
+        sta VKY_SP0_POS_Y_H,y
+
+        lda #%01000001                  ; size: 16x16, layer 0, LUT 0, Enable
+        cpy #$00
+        beq _initSpritePlayerLUT
+        lda #%01000011                  ; size: 16x16, layer 0, LUT 1, Enable
+_initSpritePlayerLUT
+        sta VKY_SP0_CTRL,y              ; TODO: use LUT 1 for enemy sprites
+
+        tya
+        clc
+        adc #$08
+        tay
+        cmp #$30
+        bne _initSpriteL
+
+_exit
+        rts
+
+
+printSpriteF256
+        ; A = sprite index (0 = player, 1..4 = enemies)
+        ; X = pixel pos X / 2
+        ; Y = pixel pos Y
+        asl                             ; * 8 (offset to sprite register block)
+        asl
+        asl
+        sta _spriteRegisterOffset
+
+        lda #$00                        ; Set the I/O page to #0
+        sta MMU_IO_CTRL                 ; ($c000-$dfff is I/O)
+
+        tya
+        clc
+        adc #32                         ; start offset of sprite
+        ldy _spriteRegisterOffset
+        sta VKY_SP0_POS_Y_L,y
+        lda #$00
+        sta VKY_SP0_POS_Y_H,y
+
+        txa
+        clc
+        adc #(32/2)
+        asl                             ; calculate actual X position (lb)
+        sta VKY_SP0_POS_X_L,y
+        lda #$00
+        rol
+        sta VKY_SP0_POS_X_H,y
+
+        ; set sprite pointer from animation phase
+        ldy _spriteRegisterOffset
+        bne _printSpriteEnemy
+_printSpritePlayer
+        lda zpPlayerAnimPhase           ; player animation phase
+        jmp _printSpriteJ1
+_printSpriteEnemy
+        ldx zpEnemyAnimPhase
+        lda _tabEnemyToPlayerPhase,x
+
+_printSpriteJ1
+        clc
+        adc #>spritesF256
+        sta VKY_SP0_AD_M,y
+
+        rts
+
+_spriteRegisterOffset
+        .byte $00
+
+_tabEnemyToPlayerPhase
+        .byte $00,$01,$02,$03,$04,$05,$07
+        .byte $08,$09,$0a,$0b,$0c,$0d,$0f
+        .byte $10,$11
 
 .comment
 resetSwapArea8000               ; swap area at $8000
@@ -628,7 +816,7 @@ setSwapArea8000
 
 
 delayGameShort
-        lda #5
+        lda #2
         bne delayGameFrames
 
 delayGame
