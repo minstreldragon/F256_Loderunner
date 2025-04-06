@@ -194,10 +194,11 @@ event_key_pressed
         lda event.key.ascii
         beq _exit                       ; suppress unmapped keys (Shift)
         cmp #$60                        ; upper case?
-        bcc _key_pressed_j1
+        bcc _key_pressed_j1             ; yes ->
         sec
-        sbc #$20                        ; to lower case
+        sbc #$20                        ; to upper case
 _key_pressed_j1
+.comment
         ora #$80                        ; Ultima III expects uppermost bit set
         cmp #KEY_NORTH_ALT
         beq _key_pressed_north
@@ -222,7 +223,8 @@ _key_pressed_west
         bne _key_pressed_j2
 
 _key_pressed_j2
-        sta KBD
+.endcomment
+        sta keyboardCode
         ; TODO: do something with key code
 _exit
         rts
@@ -727,10 +729,10 @@ _initSpriteL
         sta VKY_SP0_POS_Y_L,y
         sta VKY_SP0_POS_Y_H,y
 
-        lda #%01000001                  ; size: 16x16, layer 0, LUT 0, Enable
+        lda #%01000000                  ; size: 16x16, layer 0, LUT 0, Disable
         cpy #$00
         beq _initSpritePlayerLUT
-        lda #%01000011                  ; size: 16x16, layer 0, LUT 1, Enable
+        lda #%01000010                  ; size: 16x16, layer 0, LUT 1, Disable
 _initSpritePlayerLUT
         sta VKY_SP0_CTRL,y              ; TODO: use LUT 1 for enemy sprites
 
@@ -798,6 +800,115 @@ _tabEnemyToPlayerPhase
         .byte $00,$01,$02,$03,$04,$05,$07
         .byte $08,$09,$0a,$0b,$0c,$0d,$0f
         .byte $10,$11
+
+
+enableSpriteF256
+        ; A = sprite index (0 = player, 1..4 = enemies)
+        asl                             ; * 8 (offset to sprite register block)
+        asl
+        asl
+        tay
+        cpy #$00
+        beq _enableSpritePlayerLUT
+_enableSpriteEnemyLut
+        lda #%01000011                  ; size: 16x16, layer 0, LUT 1, Enable
+        bne _enableSpriteJ1
+_enableSpritePlayerLut
+        lda #%01000001                  ; size: 16x16, layer 0, LUT 0, Enable
+_enableSpriteJ1
+        sta VKY_SP0_CTRL,y
+        rts
+
+disableSpriteF256
+        ; A = sprite index (0 = player, 1..4 = enemies)
+        asl                             ; * 8 (offset to sprite register block)
+        asl
+        asl
+        tay
+        cpy #$00
+        beq _disableSpritePlayerLUT
+_disableSpriteEnemyLut
+        lda #%01000010                  ; size: 16x16, layer 0, LUT 1, Disable
+        bne _disableSpriteJ1
+_disableSpritePlayerLut
+        lda #%01000000                  ; size: 16x16, layer 0, LUT 0, Disable
+_disableSpriteJ1
+        sta VKY_SP0_CTRL,y
+        rts
+
+enableSpritesF256
+        ; A = max sprite
+        tax
+        lda #$00                        ; start with sprite 0
+_enableSpritesL
+        tay
+        cpy #$00
+        beq _enableSpritePlayerLUT
+        lda #%01000011                  ; size: 16x16, layer 0, LUT 1, Enable
+        bne _enableSpriteJ1
+_enableSpritePlayerLut
+        lda #%01000001                  ; size: 16x16, layer 0, LUT 0, Enable
+_enableSpriteJ1
+        sta VKY_SP0_CTRL,y
+        tya
+        clc
+        adc #$08
+        dex
+        bpl _enableSpritesL
+        rts
+
+disableSpritesF256
+        ; A = max. sprite
+        tax
+        lda #$00                        ; start with sprite 0
+_disableSpritesL
+        tay
+        cpy #$00
+        beq _disableSpritePlayerLUT
+_disableSpriteEnemyLut
+        lda #%01000010                  ; size: 16x16, layer 0, LUT 1, Disable
+        bne _disableSpriteJ1
+_disableSpritePlayerLut
+        lda #%01000000                  ; size: 16x16, layer 0, LUT 0, Disable
+_disableSpriteJ1
+        lda VKY_SP0_CTRL,y
+        and #%11111110                  ; Disable Sprite
+        sta VKY_SP0_CTRL,y
+        tya
+        clc
+        adc #$08
+        dex
+        bpl _disableSpritesL
+        rts
+
+loadBoardF256
+        ; A = Level to load (0-based)
+        pha
+        lsr                             ; one bank ($2000 byte) can hold $20 levels
+        lsr
+        lsr
+        lsr
+        lsr
+        clc
+        adc #$30
+        jsr setSwapArea                 ; bank in level data
+
+        pla
+        and #$1f
+        clc
+        adc #$a0
+        sta _loadBoardL+2               ; set board offset within bank
+
+        ldy #$00
+_loadBoardL
+        lda $a000,y                     ; self modified address
+        sta boardPacked,y
+        iny
+        bne _loadBoardL
+
+        jsr resetSwapArea
+        rts
+
 
 .comment
 resetSwapArea8000               ; swap area at $8000

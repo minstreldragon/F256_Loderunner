@@ -17,8 +17,9 @@ resetGame
         sta playerNotFalling            ; 0: player is falling, >0: not falling
         sta soundFxPlayerDying          ; sound effect player dying, current pitch
         sta digDirection                ; $ff: dig forward, $00: dig behind runner
-        sta irisAnimationOn             ; $ff: iris animation on, $00: turned off
+;;;        sta irisAnimationOn             ; $ff: iris animation on, $00: turned off
         lda #$00
+        sta irisAnimationOn             ; TODO TEMPORARY EXPERIMENTAL prevent Iris animation
         sta tuneDataEnd                 ; offset: end of current tune
         sta tunePlayOffset              ; offset: playback position in current tune
         sta playerDiggingState          ; 0: player not digging, 1: digging right, -1 ($ff): digging left
@@ -26,9 +27,9 @@ resetGame
         sta keyboardCode                ; keyboard matrix code (no key: 0)
         sta previousKeyboardCode        ; last registered keyboard code (prevent repeat)
         sta skipShapeConversion         ; 0: don't skip shape conversion, >0: skip shape conversion
-        lda #>boardPacked               ; ($10)
-        sta boardLoadPage
-        sta boardSavePage
+;;;        lda #>boardPacked               ; ($10)
+;;;        sta boardLoadPage
+;;;        sta boardSavePage
         sta jingleGoldBeamPosPrev       ; previous raster beam position for gold jingle
         lda LSTX                        ; Matrix code of last key pressed ($40: none pressed)
         sta previousKeyboardCode        ; last registered keyboard code (prevent repeat)
@@ -36,7 +37,8 @@ resetGame
         sta LSTX                        ; Matrix code of last key pressed ($40: none pressed)
         lda #$05
         sta gameDelay                   ; 3: fastest, 8: slowest
-        lda #PETSCII_J
+;;;        lda #PETSCII_J
+        lda #PETSCII_K                  ; TODO: EXPERIMENTAL
         sta controllerMode              ; 'J': Joystick, 'K': Keyboard
         lda #GAME_MODE_TITLE_SCREEN     ; set game mode to title screen
         sta gameMode                    ; 0: start screen, 1: demo, 2: play, 3: play from edit, 5: editor
@@ -72,9 +74,12 @@ initBoard
         sta tuneDataEnd                 ; offset: end of current tune
         lda #$ff                        ; animate iris: both open and close
         sta irisPhase                   ; iris animation phase: 0: animate open only, $ff: animate both
-        ldy numEnemies
-        lda SpriteEnableTable,y         ; bitfield: enabled sprites per number of enemies
-        sta VicSpriteEnable
+;;;        ldy numEnemies
+;;;        lda SpriteEnableTable,y         ; bitfield: enabled sprites per number of enemies
+;;;        sta VicSpriteEnable
+        lda numEnemies
+        jsr enableSpritesF256           ; TODO EXPERIMENTAL Turn on sprites
+
         lda #$00
         sta inputVertical
         sta inputHorizontal
@@ -83,9 +88,11 @@ initBoard
         beq _initEnemyMovement          ; no (demo mode) -> start immediately
 
 _playerFlashingL
-        lda VicSpriteEnable
-        and #$fe                        ; disable player sprite
-        sta VicSpriteEnable
+;;;        lda VicSpriteEnable
+;;;        and #$fe                        ; disable player sprite
+;;;        sta VicSpriteEnable
+        lda #$00                        ; CHECK EXPERIMENTAL
+        jsr disableSpriteF256           ; CHECK EXPERIMENTAL
 
         ldy #$90                        ; delay loop: $9000
         ldx #$00                        ; (note: this is shorter than a blink cycle, to do this
@@ -98,9 +105,11 @@ _waitForInputL1
         dey
         bne _waitForInputL1
 
-        lda VicSpriteEnable
-        ora #$01                        ; enable player sprite
-        sta VicSpriteEnable
+;;;        lda VicSpriteEnable
+;;;        ora #$01                        ; enable player sprite
+;;;        sta VicSpriteEnable
+        lda #$00                        ; CHECK EXPERIMENTAL
+        jsr enableSpriteF256            ; CHECK EXPERIMENTAL
 
         ldy #$90                        ; delay loop: $9000
         ldx #$00                        ; (note: this is shorter than a blink cycle, to do this
@@ -114,9 +123,11 @@ _waitForInputL2
         jmp _playerFlashingL
 
 _enablePlayerSprite
-        lda VicSpriteEnable
-        ora #$01                        ; enable player sprite
-        sta VicSpriteEnable
+;;;        lda VicSpriteEnable
+;;;        ora #$01                        ; enable player sprite
+;;;        sta VicSpriteEnable
+        lda #$00                        ; CHECK EXPERIMENTAL
+        jsr enableSpriteF256            ; CHECK EXPERIMENTAL
 
 _initEnemyMovement
         ldx #$00
@@ -165,6 +176,7 @@ _levelNotFinished
         lda playerAlive                 ; 0: player dead, 1: player alive
         beq playerDies
 _delayGameLoop
+        jsr handleEvents
         jsr delayF256                   ; EXPERIMENTAL
 ;;;        lda irqFrameCounter             ; free running counter increased with each IRQ
 ;;;        cmp gameDelay                   ; 3: fastest, 8: slowest
@@ -228,7 +240,7 @@ _playerDiesInPlayMode
 _playTuneL
         lda tuneDataEnd                 ; offset: end of current tune
         cmp tunePlayOffset              ; offset: playback position in current tune
-        bne _playTuneL
+;;;        bne _playTuneL               ; TODO EXPERIMENTAL SOUND FIX
         lda #$00
         sta playerDiggingState          ; 0: player not digging, 1: digging right, -1 ($ff): digging left
         lda #$20
@@ -236,7 +248,8 @@ _playTuneL
         jsr printLives
 _waitSoundFxFinishedL
         lda soundFxPlayerDying          ; sound effect player dying, current pitch
-        bne _waitSoundFxFinishedL       ; wait for sound effect to finish (IRQ)
+                                        ; TODO EXPERIMENTAL SOUND FIX
+;;;        bne _waitSoundFxFinishedL       ; wait for sound effect to finish (IRQ)
         lda lives
         bne playerDiesInitBoard         ; (re)initialize board after player died
 
@@ -2009,9 +2022,10 @@ loadStoreBoard                          ; load from (1) or store (2) board in bo
         pha                             ; store disk operation request
         bpl _loadStoreBoardJ1           ; disk operation request > 0? ->
         pla                             ; restore disk operation request
-        and #$7f                        ; make it positive
-        pha                             ; push disk operation request
-        jmp executeDiskCommand
+;;;        and #$7f                        ; make it positive
+;;;        pha                             ; push disk operation request
+;;;        jmp executeDiskCommand
+        rts                             ; TODO - EXPERIMENTAL
 
 _loadStoreBoardJ1
         lda gameMode                    ; 0: start screen, 1: demo, 2: play, 3: play from edit, 5: editor
@@ -2045,6 +2059,8 @@ _ldaDemoGameBoards
         rts
 
 loadSaveHighScores
+        rts                             ; TODO - EXPERIMENTAL
+.comment
         tax                             ; disk command
         lda currentLevel                ; current level (0-based)
         pha                             ; store current level
@@ -2082,9 +2098,28 @@ _signatureFound
         lda #$ff                        ; return: found user disk
 _exit
         rts
+.endcomment
+
 
 
 loadStoreBoardFromDisk
+        pla                             ; restore disk operation request
+        lsr
+        bcs _loadBoardFromDisk           ; (1) load from disk? ->
+        lsr
+        bcc _initUserDisk               ; (4) initialize user disk? ->
+_saveBoardToDisk
+_initUserDisk
+        rts
+_loadBoardFromDisk
+        lda #$08                        ; TODO EXPERIMENTAL disable sprites
+        jsr disableSpritesF256          ; TODO EXPERIMENTAL disable sprites
+        lda currentLevel                ; current level (0-based)
+        jsr loadBoardF256
+        rts
+
+.comment
+
         lda #$00
         sta VicSpriteEnable             ; turn off sprites
         jsr CLALL
@@ -2267,6 +2302,7 @@ sector
 
 uPlusCommandStr
         .text "U+",$0d,$00
+.endcomment
 
 
 checkDriveCommandResult
@@ -2291,6 +2327,7 @@ _exitOk
         rts
 
 
+.comment
 reInitDrive                             ; re-initialize disk drive
         jsr CLRCHN                      ; clrchn
         ldx #$0f
@@ -2305,15 +2342,18 @@ _sendUPlusCommandL
         jmp _sendUPlusCommandL
 _exit
         jmp CLALL                       ; clall
+.endcomment
 
 
 initBoardState                          ; initialize the board state (player, #enemies, #ladders etc)
         ; iterate over the board in order to find the player position,
         ; set up the enemies, initialize exit ladders, count gold etc.
+        lda #$08                        ; TODO EXPERIMENTAL disable sprites
+        jsr disableSpritesF256          ; TODO EXPERIMENTAL disable sprites
         ldy #BOARD_HEIGHT-1             ; set up row iterator
         sty zpCursorRow
-        lda #$00                        ; disable sprites
-        sta VicSpriteEnable
+;;;        lda #$00                        ; disable sprites
+;;;        sta VicSpriteEnable
 _initBoardRowL
         lda boardActionOffsetLb,y
         sta zpBoardActionPtr+0
@@ -2345,7 +2385,8 @@ _substituteBlank
         sta (zpBoardLayoutPtr),y
 
 _justDrawTile
-        beq _printTileAndContinue
+        jmp _printTileAndContinue       ; EXPERIMENTAL
+;;;        beq _printTileAndContinue
 
 _notExitLadder
         cmp #SHAPE_GOLD_CHEST           ; gold chest?
@@ -2376,8 +2417,11 @@ _notGold
         sta (zpBoardLayoutPtr),y        ; replace enemy by blank in the layout board
         lda #SHAPE_BLANK
         jsr replaceTileBitmap1
-        lda #SHAPE_ENEMY
-        bne _printTileAndContinue
+
+        jmp _initBoardDisplayEnemy
+
+;;;        lda #SHAPE_ENEMY
+;;;        bne _printTileAndContinue
 
 _initBoardRowLBranch                    ; (branch extension row loop)
         bpl _initBoardRowL
@@ -2402,8 +2446,11 @@ _notEnemy
         sta (zpBoardLayoutPtr),y        ; replace player by blank in the layout board
         lda #SHAPE_BLANK
         jsr replaceTileBitmap1
-        lda #SHAPE_PLAYER
-        bne _printTileAndContinue
+
+        jmp _initBoardDisplayPlayer     ; EXPERIMENTAL
+
+;;;        lda #SHAPE_PLAYER
+;;;        bne _printTileAndContinue
 
 _notPlayer
         cmp #SHAPE_TRAP_DOOR            ; trap door?
@@ -2412,6 +2459,7 @@ _notPlayer
 
 _printTileAndContinue
         jsr replaceTileBitmap1          ; draw tile
+_initBoardContinue
         dec zpCursorCol                 ; iterate over columns
         ldy zpCursorCol
         bpl _initBoardColLBranch
@@ -2421,12 +2469,26 @@ _printTileAndContinue
         bpl _initBoardRowLBranch
 
         lda boardRequiresFullInit       ; 0: board has been initialized before, != 0: board requires full init
-        beq _copyBufferedBitmap         ; copy Bitmap1 (buffer) to Bitmap0
+;;;        beq _copyBufferedBitmap         ; copy Bitmap1 (buffer) to Bitmap0
         lda zpPlayerX                   ; player, X position on board
         bpl _initBoardQuickRedraw
         sec
         rts
 
+_initBoardDisplayEnemy
+        jsr loadEnemyState              ; EXPERIMENTAL
+        jsr prepareDisplayEnemy         ; EXPERIMENTAL
+        lda enemyIndex                  ; EXPERIMENTAL current enemy, index
+        jsr printSpriteF256             ; EXPERIMENTAL
+        jmp _initBoardContinue          ; EXPERIMENTAL
+
+_initBoardDisplayPlayer
+        jsr prepareDisplayPlayer        ; EXPERIMENTAL
+        lda #$00                        ; EXPERIMENTAL
+        jsr printSpriteF256             ; EXPERIMENTAL
+        jmp _initBoardContinue          ; EXPERIMENTAL
+
+.comment
 _copyBufferedBitmap
         lda #>Bitmap0
         sta zpBmpPtr1+1
@@ -2450,20 +2512,21 @@ _copyBitmapL
 
         clc
         rts
+.endcomment
 
 _skipIrisAnimation
-        lda #>Bitmap1                   ; print to bitmap 1 (buffer, hidden)
-        sta zpBitmapPage2               ; active bitmap page for printing
+;;;        lda #>Bitmap1                   ; print to bitmap 1 (buffer, hidden)
+;;;        sta zpBitmapPage2               ; active bitmap page for printing
         jsr printBoardFooter            ; draw solid ground and print status line
-        jsr _copyBufferedBitmap         ; copy Bitmap1 (buffer) to Bitmap0
-        lda #>Bitmap0                   ; print to bitmap 0
-        sta zpBitmapPage2               ; active bitmap page for printing
+;;;        jsr _copyBufferedBitmap         ; copy Bitmap1 (buffer) to Bitmap0
+;;;        lda #>Bitmap0                   ; print to bitmap 0
+;;;        sta zpBitmapPage2               ; active bitmap page for printing
         bne _initBoardQuickRedrawJ1
 
 _initBoardQuickRedraw
-.comment
         lda irisAnimationOn             ; $ff: iris animation on, $00: turned off
         beq _skipIrisAnimation
+.comment
         jsr doIrisAnimation             ; do the iris animation effect
 .endcomment
 
@@ -5192,9 +5255,11 @@ _findKilledEnemyJ1
         cmp zpCursorRow                 ; enemy at hole's row?
         bne _continueNextEnemy
 
-        lda tabEnemySpriteDisable,x     ; disable mask for sprite x
-        and VicSpriteEnable             ; disable enemie's sprite
-        sta VicSpriteEnable
+;;;        lda tabEnemySpriteDisable,x     ; disable mask for sprite x
+;;;        and VicSpriteEnable             ; disable enemie's sprite
+;;;        sta VicSpriteEnable
+        txa                             ; CHECK EXPERIMENTAL
+        jsr disableSpriteF256           ; CHECK EXPERIMENTAL
         lda enemiesActionCtr,x          ; was the enemy carrying gold?
         bpl _killEnemyJ1                ; no ->
         dec goldLeft                    ; yes -> this gold chest is lost
@@ -5337,12 +5402,19 @@ _enemyRespawnFinish
         ldx enemyIndex                  ; current enemy, index
         sta enemiesActionCtr,x          ; enemy carries no gold, not in a hole
         sta enemiesRespawnCtr,x         ; time left until enemy respawns
-        lda #SHAPE_ENEMY
-        jsr replaceTileBitmap0          ; set enemy sprite
+;;;        lda #SHAPE_ENEMY
+;;;        jsr replaceTileBitmap0          ; set enemy sprite
+
+        jsr prepareDisplayEnemy         ; TODO EXPERIMENTAL
+        lda enemyIndex                  ; TODO EXPERIMENTAL current enemy, index
+        jsr printSpriteF256             ; TODO EXPERIMENTAL
+
         ldx enemyIndex                  ; current enemy, index
-        lda tabEnemySpriteEnable,x      ; enable enemy sprite
-        ora VicSpriteEnable
-        sta VicSpriteEnable
+;;;        lda tabEnemySpriteEnable,x      ; enable enemy sprite
+;;;        ora VicSpriteEnable
+;;;        sta VicSpriteEnable
+        txa                             ; CHECK EXPERIMENTAL
+        jsr enableSpriteF256            ; CHECK EXPERIMENTAL
         jmp _continueNextEnemy
 
 tabEnemySpriteEnable
@@ -5705,6 +5777,7 @@ _exitCursorLoop
         rts
 
 detectUserInput
+        jsr handleEvents                ; TODO EXPERIMENTAL
         lda Cia1PortA                   ; read joystick port 2
         and #$0f                        ; mask: direction bits
         eor #$0f                        ; invert active (positive logic)
@@ -5954,66 +6027,7 @@ _copyShapeToBitmapL2
 ;=============== end unreachable code ==============
 
 copyShapeToHopper                       ; copy/shift the shape to zpShiftedShapeHopper
-        lda #SHAPE_HEIGHT
-        sta zpShapeRowIter              ; iterator over rows in shape
-        lda #<Shapes
-        sta zpWideShapePtr+0
-ldaShapes
-        lda #>Shapes                    ; high byte of address modified by copy protection check
-        sta zpWideShapePtr+1
-        ldy tabShapeShiftTablePage,x    ; x: # of double pixels to shift
-        sty _ldaShiftTableLeft1+2       ; Self-modifying code (selects shapeShiftTable for shift)
-        sty _ldaShiftTableLeft2+2       ; Self-modifying code
-        iny                             ; inc. shape shift table page (left byte -> right byte)
-        sty _ldaShiftTableRight1+2      ; Self-modifying code
-        sty _ldaShiftTableRight2+2      ; Self-modifying code
-        ldx #$00
-_copyShapeToHopperL
-        ldy zpShapeId                   ; shape to print
-        lda (zpWideShapePtr),y          ; get shape byte (left)
-        tay
-_ldaShiftTableLeft1
-        lda shapeShiftTables,y          ; shifted value, lb
-        sta zpShiftedShapeHopper+0,x    ; 33 byte of shifted shape data
-_ldaShiftTableRight1
-        lda shapeShiftTables,y          ; shifted value, hb
-        sta zpShiftedShapeHopper+1,x
-        lda zpWideShapePtr+0
-        clc
-        adc #NUM_SHAPES                 ; number of distinct shapes
-        sta zpWideShapePtr+0
-        lda zpWideShapePtr+1
-        adc #$00
-        sta zpWideShapePtr+1
-        ldy zpShapeId                   ; shape to print
-        lda (zpWideShapePtr),y          ; get shape byte (right)
-        tay
-_ldaShiftTableLeft2
-        lda shapeShiftTables,y
-        ora zpShiftedShapeHopper+1,x
-        sta zpShiftedShapeHopper+1,x
-_ldaShiftTableRight2
-        lda shapeShiftTables,y
-        sta zpShiftedShapeHopper+2,x
-        lda zpWideShapePtr+0            ; increase ptr to next byte in shape
-        clc
-        adc #NUM_SHAPES                 ; number of distinct shapes
-        sta zpWideShapePtr+0
-        lda zpWideShapePtr+1
-        adc #$00
-        sta zpWideShapePtr+1
-        inx
-        inx
-        inx
-        dec zpShapeRowIter              ; dec shape row iterator
-        bne _copyShapeToHopperL
         rts
-
-tabShapeShiftTablePage
-        .byte >(shapeShiftTables+$0000) ; shift 0 pixels
-        .byte >(shapeShiftTables+$0200) ; shift 2 pixels
-        .byte >(shapeShiftTables+$0400) ; shift 4 pixels
-        .byte >(shapeShiftTables+$0600) ; shift 6 pixels
 
                                         ; convert charset to shape id
 convertShapeOrPrintSprite
@@ -6799,7 +6813,7 @@ _exit
 _compareLowBytes
         lda zpCircleY+0                 ; compare circle Y < circle X (lb)
         cmp zpCircleX+0
-        bcs _drawCircleFinish           ; circle Y >= circle X -> exit condition 
+        bcs _drawCircleFinish           ; circle Y >= circle X -> exit condition
 
 _drawCircleJ1
         jsr irisDrawOctants             ; update iris for all 8 octants
@@ -7133,7 +7147,7 @@ tabIrisCloseMask
 ; Note:
 ; The resolution of the circle drawing could be improved by
 ; clearing/copying two pixels at a time rather than four pixels:
-; 
+;
 ; tabIrisOpenMask
 ;         .byte $03,$03,$0c,$0c,$30,$30,$c0,$c0
 ; tabIrisCloseMask
@@ -7213,7 +7227,7 @@ tabIrisCloseMask
 
         .text $88,"bandat10"
         .word gameOverLine0a
-        
+
         .text $87,"banvect"
         .word GameOverLineData
 
@@ -7575,327 +7589,6 @@ jingle_9_data
 jingle_empty_data
         .byte $00
 
-        .align $100
-
-shapeShiftTables
-la000   ; shift 0 pixels, left
-        .byte $00,$01,$02,$03,$04,$05,$06,$07,$08,$09,$0a,$0b,$0c,$0d,$0e,$0f
-        .byte $10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$1a,$1b,$1c,$1d,$1e,$1f
-        .byte $20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$2a,$2b,$2c,$2d,$2e,$2f
-        .byte $30,$31,$32,$33,$34,$35,$36,$37,$38,$39,$3a,$3b,$3c,$3d,$3e,$3f
-        .byte $40,$41,$42,$43,$44,$45,$46,$47,$48,$49,$4a,$4b,$4c,$4d,$4e,$4f
-        .byte $50,$51,$52,$53,$54,$55,$56,$57,$58,$59,$5a,$5b,$5c,$5d,$5e,$5f
-        .byte $60,$61,$62,$63,$64,$65,$66,$67,$68,$69,$6a,$6b,$6c,$6d,$6e,$6f
-        .byte $70,$71,$72,$73,$74,$75,$76,$77,$78,$79,$7a,$7b,$7c,$7d,$7e,$7f
-        .byte $80,$81,$82,$83,$84,$85,$86,$87,$88,$89,$8a,$8b,$8c,$8d,$8e,$8f
-        .byte $90,$91,$92,$93,$94,$95,$96,$97,$98,$99,$9a,$9b,$9c,$9d,$9e,$9f
-        .byte $a0,$a1,$a2,$a3,$a4,$a5,$a6,$a7,$a8,$a9,$aa,$ab,$ac,$ad,$ae,$af
-        .byte $b0,$b1,$b2,$b3,$b4,$b5,$b6,$b7,$b8,$b9,$ba,$bb,$bc,$bd,$be,$bf
-        .byte $c0,$c1,$c2,$c3,$c4,$c5,$c6,$c7,$c8,$c9,$ca,$cb,$cc,$cd,$ce,$cf
-        .byte $d0,$d1,$d2,$d3,$d4,$d5,$d6,$d7,$d8,$d9,$da,$db,$dc,$dd,$de,$df
-        .byte $e0,$e1,$e2,$e3,$e4,$e5,$e6,$e7,$e8,$e9,$ea,$eb,$ec,$ed,$ee,$ef
-        .byte $f0,$f1,$f2,$f3,$f4,$f5,$f6,$f7,$f8,$f9,$fa,$fb,$fc,$fd,$fe,$ff
-la100   ; shift 0 pixels, right
-        .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
-        .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
-        .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
-        .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
-        .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
-        .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
-        .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
-        .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
-        .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
-        .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
-        .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
-        .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
-        .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
-        .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
-        .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
-        .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
-la200   ; shift 2 pixels, left
-        .byte $00,$00,$00,$00,$01,$01,$01,$01,$02,$02,$02,$02,$03,$03,$03,$03
-        .byte $04,$04,$04,$04,$05,$05,$05,$05,$06,$06,$06,$06,$07,$07,$07,$07
-        .byte $08,$08,$08,$08,$09,$09,$09,$09,$0a,$0a,$0a,$0a,$0b,$0b,$0b,$0b
-        .byte $0c,$0c,$0c,$0c,$0d,$0d,$0d,$0d,$0e,$0e,$0e,$0e,$0f,$0f,$0f,$0f
-        .byte $10,$10,$10,$10,$11,$11,$11,$11,$12,$12,$12,$12,$13,$13,$13,$13
-        .byte $14,$14,$14,$14,$15,$15,$15,$15,$16,$16,$16,$16,$17,$17,$17,$17
-        .byte $18,$18,$18,$18,$19,$19,$19,$19,$1a,$1a,$1a,$1a,$1b,$1b,$1b,$1b
-        .byte $1c,$1c,$1c,$1c,$1d,$1d,$1d,$1d,$1e,$1e,$1e,$1e,$1f,$1f,$1f,$1f
-        .byte $20,$20,$20,$20,$21,$21,$21,$21,$22,$22,$22,$22,$23,$23,$23,$23
-        .byte $24,$24,$24,$24,$25,$25,$25,$25,$26,$26,$26,$26,$27,$27,$27,$27
-        .byte $28,$28,$28,$28,$29,$29,$29,$29,$2a,$2a,$2a,$2a,$2b,$2b,$2b,$2b
-        .byte $2c,$2c,$2c,$2c,$2d,$2d,$2d,$2d,$2e,$2e,$2e,$2e,$2f,$2f,$2f,$2f
-        .byte $30,$30,$30,$30,$31,$31,$31,$31,$32,$32,$32,$32,$33,$33,$33,$33
-        .byte $34,$34,$34,$34,$35,$35,$35,$35,$36,$36,$36,$36,$37,$37,$37,$37
-        .byte $38,$38,$38,$38,$39,$39,$39,$39,$3a,$3a,$3a,$3a,$3b,$3b,$3b,$3b
-        .byte $3c,$3c,$3c,$3c,$3d,$3d,$3d,$3d,$3e,$3e,$3e,$3e,$3f,$3f,$3f,$3f
-la300   ; shift 2 pixels, right
-        .byte $00,$40,$80,$c0,$00,$40,$80,$c0,$00,$40,$80,$c0,$00,$40,$80,$c0
-        .byte $00,$40,$80,$c0,$00,$40,$80,$c0,$00,$40,$80,$c0,$00,$40,$80,$c0
-        .byte $00,$40,$80,$c0,$00,$40,$80,$c0,$00,$40,$80,$c0,$00,$40,$80,$c0
-        .byte $00,$40,$80,$c0,$00,$40,$80,$c0,$00,$40,$80,$c0,$00,$40,$80,$c0
-        .byte $00,$40,$80,$c0,$00,$40,$80,$c0,$00,$40,$80,$c0,$00,$40,$80,$c0
-        .byte $00,$40,$80,$c0,$00,$40,$80,$c0,$00,$40,$80,$c0,$00,$40,$80,$c0
-        .byte $00,$40,$80,$c0,$00,$40,$80,$c0,$00,$40,$80,$c0,$00,$40,$80,$c0
-        .byte $00,$40,$80,$c0,$00,$40,$80,$c0,$00,$40,$80,$c0,$00,$40,$80,$c0
-        .byte $00,$40,$80,$c0,$00,$40,$80,$c0,$00,$40,$80,$c0,$00,$40,$80,$c0
-        .byte $00,$40,$80,$c0,$00,$40,$80,$c0,$00,$40,$80,$c0,$00,$40,$80,$c0
-        .byte $00,$40,$80,$c0,$00,$40,$80,$c0,$00,$40,$80,$c0,$00,$40,$80,$c0
-        .byte $00,$40,$80,$c0,$00,$40,$80,$c0,$00,$40,$80,$c0,$00,$40,$80,$c0
-        .byte $00,$40,$80,$c0,$00,$40,$80,$c0,$00,$40,$80,$c0,$00,$40,$80,$c0
-        .byte $00,$40,$80,$c0,$00,$40,$80,$c0,$00,$40,$80,$c0,$00,$40,$80,$c0
-        .byte $00,$40,$80,$c0,$00,$40,$80,$c0,$00,$40,$80,$c0,$00,$40,$80,$c0
-        .byte $00,$40,$80,$c0,$00,$40,$80,$c0,$00,$40,$80,$c0,$00,$40,$80,$c0
-la400   ; shift 4 pixels, left
-        .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
-        .byte $01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01
-        .byte $02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02
-        .byte $03,$03,$03,$03,$03,$03,$03,$03,$03,$03,$03,$03,$03,$03,$03,$03
-        .byte $04,$04,$04,$04,$04,$04,$04,$04,$04,$04,$04,$04,$04,$04,$04,$04
-        .byte $05,$05,$05,$05,$05,$05,$05,$05,$05,$05,$05,$05,$05,$05,$05,$05
-        .byte $06,$06,$06,$06,$06,$06,$06,$06,$06,$06,$06,$06,$06,$06,$06,$06
-        .byte $07,$07,$07,$07,$07,$07,$07,$07,$07,$07,$07,$07,$07,$07,$07,$07
-        .byte $08,$08,$08,$08,$08,$08,$08,$08,$08,$08,$08,$08,$08,$08,$08,$08
-        .byte $09,$09,$09,$09,$09,$09,$09,$09,$09,$09,$09,$09,$09,$09,$09,$09
-        .byte $0a,$0a,$0a,$0a,$0a,$0a,$0a,$0a,$0a,$0a,$0a,$0a,$0a,$0a,$0a,$0a
-        .byte $0b,$0b,$0b,$0b,$0b,$0b,$0b,$0b,$0b,$0b,$0b,$0b,$0b,$0b,$0b,$0b
-        .byte $0c,$0c,$0c,$0c,$0c,$0c,$0c,$0c,$0c,$0c,$0c,$0c,$0c,$0c,$0c,$0c
-        .byte $0d,$0d,$0d,$0d,$0d,$0d,$0d,$0d,$0d,$0d,$0d,$0d,$0d,$0d,$0d,$0d
-        .byte $0e,$0e,$0e,$0e,$0e,$0e,$0e,$0e,$0e,$0e,$0e,$0e,$0e,$0e,$0e,$0e
-        .byte $0f,$0f,$0f,$0f,$0f,$0f,$0f,$0f,$0f,$0f,$0f,$0f,$0f,$0f,$0f,$0f
-la500   ; shift 4 pixels, right
-        .byte $00,$10,$20,$30,$40,$50,$60,$70,$80,$90,$a0,$b0,$c0,$d0,$e0,$f0
-        .byte $00,$10,$20,$30,$40,$50,$60,$70,$80,$90,$a0,$b0,$c0,$d0,$e0,$f0
-        .byte $00,$10,$20,$30,$40,$50,$60,$70,$80,$90,$a0,$b0,$c0,$d0,$e0,$f0
-        .byte $00,$10,$20,$30,$40,$50,$60,$70,$80,$90,$a0,$b0,$c0,$d0,$e0,$f0
-        .byte $00,$10,$20,$30,$40,$50,$60,$70,$80,$90,$a0,$b0,$c0,$d0,$e0,$f0
-        .byte $00,$10,$20,$30,$40,$50,$60,$70,$80,$90,$a0,$b0,$c0,$d0,$e0,$f0
-        .byte $00,$10,$20,$30,$40,$50,$60,$70,$80,$90,$a0,$b0,$c0,$d0,$e0,$f0
-        .byte $00,$10,$20,$30,$40,$50,$60,$70,$80,$90,$a0,$b0,$c0,$d0,$e0,$f0
-        .byte $00,$10,$20,$30,$40,$50,$60,$70,$80,$90,$a0,$b0,$c0,$d0,$e0,$f0
-        .byte $00,$10,$20,$30,$40,$50,$60,$70,$80,$90,$a0,$b0,$c0,$d0,$e0,$f0
-        .byte $00,$10,$20,$30,$40,$50,$60,$70,$80,$90,$a0,$b0,$c0,$d0,$e0,$f0
-        .byte $00,$10,$20,$30,$40,$50,$60,$70,$80,$90,$a0,$b0,$c0,$d0,$e0,$f0
-        .byte $00,$10,$20,$30,$40,$50,$60,$70,$80,$90,$a0,$b0,$c0,$d0,$e0,$f0
-        .byte $00,$10,$20,$30,$40,$50,$60,$70,$80,$90,$a0,$b0,$c0,$d0,$e0,$f0
-        .byte $00,$10,$20,$30,$40,$50,$60,$70,$80,$90,$a0,$b0,$c0,$d0,$e0,$f0
-        .byte $00,$10,$20,$30,$40,$50,$60,$70,$80,$90,$a0,$b0,$c0,$d0,$e0,$f0
-la600   ; shift 6 pixels, left
-        .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
-        .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
-        .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
-        .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
-        .byte $01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01
-        .byte $01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01
-        .byte $01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01
-        .byte $01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01
-        .byte $02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02
-        .byte $02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02
-        .byte $02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02
-        .byte $02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02
-        .byte $03,$03,$03,$03,$03,$03,$03,$03,$03,$03,$03,$03,$03,$03,$03,$03
-        .byte $03,$03,$03,$03,$03,$03,$03,$03,$03,$03,$03,$03,$03,$03,$03,$03
-        .byte $03,$03,$03,$03,$03,$03,$03,$03,$03,$03,$03,$03,$03,$03,$03,$03
-        .byte $03,$03,$03,$03,$03,$03,$03,$03,$03,$03,$03,$03,$03,$03,$03,$03
-la700   ; shift 6 pixels, right
-        .byte $00,$04,$08,$0c,$10,$14,$18,$1c,$20,$24,$28,$2c,$30,$34,$38,$3c
-        .byte $40,$44,$48,$4c,$50,$54,$58,$5c,$60,$64,$68,$6c,$70,$74,$78,$7c
-        .byte $80,$84,$88,$8c,$90,$94,$98,$9c,$a0,$a4,$a8,$ac,$b0,$b4,$b8,$bc
-        .byte $c0,$c4,$c8,$cc,$d0,$d4,$d8,$dc,$e0,$e4,$e8,$ec,$f0,$f4,$f8,$fc
-        .byte $00,$04,$08,$0c,$10,$14,$18,$1c,$20,$24,$28,$2c,$30,$34,$38,$3c
-        .byte $40,$44,$48,$4c,$50,$54,$58,$5c,$60,$64,$68,$6c,$70,$74,$78,$7c
-        .byte $80,$84,$88,$8c,$90,$94,$98,$9c,$a0,$a4,$a8,$ac,$b0,$b4,$b8,$bc
-        .byte $c0,$c4,$c8,$cc,$d0,$d4,$d8,$dc,$e0,$e4,$e8,$ec,$f0,$f4,$f8,$fc
-        .byte $00,$04,$08,$0c,$10,$14,$18,$1c,$20,$24,$28,$2c,$30,$34,$38,$3c
-        .byte $40,$44,$48,$4c,$50,$54,$58,$5c,$60,$64,$68,$6c,$70,$74,$78,$7c
-        .byte $80,$84,$88,$8c,$90,$94,$98,$9c,$a0,$a4,$a8,$ac,$b0,$b4,$b8,$bc
-        .byte $c0,$c4,$c8,$cc,$d0,$d4,$d8,$dc,$e0,$e4,$e8,$ec,$f0,$f4,$f8,$fc
-        .byte $00,$04,$08,$0c,$10,$14,$18,$1c,$20,$24,$28,$2c,$30,$34,$38,$3c
-        .byte $40,$44,$48,$4c,$50,$54,$58,$5c,$60,$64,$68,$6c,$70,$74,$78,$7c
-        .byte $80,$84,$88,$8c,$90,$94,$98,$9c,$a0,$a4,$a8,$ac,$b0,$b4,$b8,$bc
-        .byte $c0,$c4,$c8,$cc,$d0,$d4,$d8,$dc,$e0,$e4,$e8,$ec,$f0,$f4,$f8,$fc
-
-Shapes
-la800
-        ; line 0, left
-        .byte $00,$a8,$aa,$c3,$00,$aa,$c0,$00,$08,$02,$ff,$10,$10,$10,$0c,$02
-        .byte $02,$02,$0c,$64,$c9,$61,$06,$18,$61,$18,$06,$00,$00,$08,$00,$a4
-        .byte $04,$00,$00,$00,$00,$08,$00,$00,$02,$02,$02,$08,$08,$41,$04,$10
-        .byte $41,$10,$04,$04,$04,$44,$44,$00,$00,$00,$00,$00,$00,$00,$00,$00
-        .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
-        .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
-        .byte $00,$00,$00,$00,$00,$00,$00,$00
-la868   ; line 0, right
-        .byte $00,$80,$80,$00,$00,$80,$00,$00,$00,$00,$c0,$00,$00,$00,$00,$00
-        .byte $00,$00,$00,$c0,$80,$80,$00,$00,$80,$00,$00,$00,$00,$00,$00,$80
-        .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
-        .byte $00,$00,$00,$00,$00,$40,$40,$00,$00,$00,$00,$00,$00,$00,$00,$00
-        .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
-        .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
-        .byte $00,$00,$00,$00,$00,$00,$00,$00
-la8d0   ; line 1, left
-        .byte $00,$a8,$aa,$c3,$ff,$aa,$c0,$00,$14,$07,$ff,$38,$38,$38,$0c,$07
-        .byte $07,$07,$8c,$6e,$dd,$61,$06,$18,$61,$18,$06,$00,$00,$00,$00,$a8
-        .byte $14,$04,$00,$00,$00,$1c,$00,$00,$05,$05,$05,$14,$14,$41,$04,$10
-        .byte $41,$10,$04,$04,$84,$44,$44,$00,$00,$00,$00,$00,$00,$00,$00,$00
-        .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
-        .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
-        .byte $00,$00,$00,$00,$00,$00,$00,$00
-la938   ; line 1, right
-        .byte $00,$80,$80,$00,$c0,$80,$00,$00,$00,$00,$c0,$00,$00,$00,$40,$00
-        .byte $00,$00,$00,$c0,$80,$80,$00,$00,$80,$00,$00,$00,$00,$00,$00,$80
-        .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
-        .byte $00,$00,$00,$40,$00,$40,$40,$00,$00,$00,$00,$00,$00,$00,$00,$00
-        .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
-        .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
-        .byte $00,$00,$00,$00,$00,$00,$00,$00
-la9a0   ; line 2, left
-        .byte $00,$a8,$aa,$ff,$00,$00,$ff,$00,$14,$07,$ff,$38,$38,$38,$0f,$07
-        .byte $07,$07,$fc,$6e,$dd,$6d,$1e,$1e,$6d,$1e,$1e,$00,$00,$00,$00,$a8
-        .byte $80,$14,$00,$00,$00,$1c,$00,$00,$05,$05,$05,$14,$14,$45,$14,$14
-        .byte $51,$14,$14,$05,$d4,$44,$44,$00,$00,$00,$00,$00,$00,$00,$00,$00
-        .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
-        .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
-        .byte $00,$00,$00,$00,$00,$00,$00,$00
-laa08   ; line 2, right
-        .byte $00,$80,$80,$00,$00,$00,$00,$00,$00,$00,$c0,$00,$00,$00,$c0,$00
-        .byte $00,$00,$00,$c0,$80,$80,$00,$00,$80,$00,$00,$00,$00,$00,$00,$80
-        .byte $80,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
-        .byte $00,$00,$00,$40,$00,$40,$40,$00,$00,$00,$00,$00,$00,$00,$00,$00
-        .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
-        .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
-        .byte $00,$00,$00,$00,$00,$00,$00,$00
-laa70   ; line 3, left
-        .byte $00,$a8,$aa,$c3,$00,$3f,$c3,$00,$04,$0e,$ff,$1c,$18,$18,$4e,$03
-        .byte $06,$06,$1c,$3f,$7f,$6f,$1c,$0e,$3d,$0e,$dc,$00,$08,$00,$08,$a8
-        .byte $a8,$94,$04,$00,$00,$18,$00,$08,$04,$04,$04,$04,$04,$45,$14,$04
-        .byte $51,$14,$10,$44,$14,$15,$15,$00,$00,$00,$00,$55,$14,$55,$55,$51
-        .byte $55,$55,$55,$15,$55,$2a,$a8,$aa,$a8,$aa,$aa,$aa,$82,$20,$08,$82
-        .byte $80,$82,$82,$aa,$aa,$aa,$aa,$aa,$aa,$82,$a2,$82,$82,$8a,$aa,$80
-        .byte $00,$28,$28,$02,$00,$02,$00,$00
-laad8   ; line 3, right
-        .byte $00,$80,$80,$00,$00,$00,$00,$00,$00,$00,$c0,$00,$00,$00,$00,$00
-        .byte $00,$00,$80,$80,$00,$00,$00,$c0,$80,$00,$00,$00,$00,$00,$00,$80
-        .byte $80,$80,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$40
-        .byte $00,$00,$00,$00,$80,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
-        .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
-        .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
-        .byte $00,$00,$00,$00,$00,$00,$00,$00
-lab40   ; line 4, left
-        .byte $00,$00,$aa,$c3,$00,$0c,$03,$00,$15,$37,$ff,$3b,$1c,$5e,$7e,$0f
-        .byte $0e,$1e,$1f,$06,$18,$3c,$78,$07,$0f,$07,$78,$00,$00,$00,$00,$00
-        .byte $00,$00,$14,$00,$00,$7e,$00,$00,$15,$14,$15,$05,$15,$14,$50,$05
-        .byte $14,$05,$50,$54,$15,$04,$04,$00,$00,$00,$00,$41,$14,$41,$41,$51
-        .byte $40,$41,$05,$11,$41,$22,$88,$82,$82,$a0,$a0,$82,$82,$20,$08,$8a
-        .byte $80,$a2,$82,$8a,$82,$8a,$82,$82,$20,$82,$a2,$82,$82,$8a,$82,$a0
-        .byte $00,$28,$28,$02,$00,$0a,$00,$00
-laba8   ; line 4, right
-        .byte $00,$00,$80,$00,$00,$00,$00,$00,$00,$00,$c0,$00,$00,$00,$00,$c0
-        .byte $00,$80,$80,$00,$00,$00,$00,$80,$00,$80,$00,$00,$00,$00,$00,$00
-        .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
-        .byte $00,$00,$00,$00,$80,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
-        .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
-        .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
-        .byte $00,$00,$00,$00,$00,$00,$00,$00
-lac10   ; line 5, left
-        .byte $00,$8a,$aa,$c3,$00,$0c,$03,$ff,$44,$6c,$ff,$cd,$3e,$7b,$0e,$5b
-        .byte $1f,$37,$1c,$06,$18,$18,$d8,$06,$06,$06,$18,$00,$00,$00,$80,$8a
-        .byte $8a,$8a,$15,$04,$00,$5b,$00,$00,$44,$15,$45,$15,$14,$10,$50,$04
-        .byte $04,$05,$10,$04,$14,$04,$04,$00,$00,$00,$00,$41,$04,$01,$01,$51
-        .byte $40,$40,$05,$11,$41,$22,$88,$80,$82,$a0,$a0,$80,$82,$20,$08,$88
-        .byte $80,$aa,$a2,$8a,$82,$8a,$82,$80,$20,$82,$a2,$82,$82,$8a,$82,$28
-        .byte $00,$a0,$0a,$08,$aa,$28,$00,$00
-lac78   ; line 5, right
-        .byte $00,$80,$80,$00,$00,$00,$00,$00,$40,$c0,$c0,$80,$00,$00,$00,$40
-        .byte $00,$80,$00,$00,$00,$00,$00,$00,$00,$c0,$00,$00,$80,$00,$00,$80
-        .byte $80,$80,$00,$00,$00,$40,$00,$80,$40,$00,$00,$00,$40,$00,$00,$00
-        .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
-        .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
-        .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
-        .byte $00,$00,$00,$00,$80,$00,$00,$00
-lace0   ; line 6, left
-        .byte $00,$8a,$aa,$c3,$00,$0c,$03,$eb,$06,$0c,$ff,$0c,$de,$18,$0e,$43
-        .byte $1e,$06,$1c,$1e,$1e,$18,$18,$06,$06,$06,$18,$08,$80,$88,$00,$8a
-        .byte $8a,$8a,$00,$05,$00,$18,$08,$a0,$0c,$06,$06,$4c,$0c,$10,$10,$04
-        .byte $04,$04,$10,$0e,$1c,$0f,$1e,$00,$80,$00,$00,$41,$04,$55,$15,$55
-        .byte $55,$40,$05,$55,$55,$aa,$aa,$80,$82,$a8,$a8,$80,$aa,$28,$0a,$a8
-        .byte $80,$aa,$aa,$82,$aa,$82,$aa,$aa,$20,$82,$a2,$82,$28,$aa,$08,$0a
-        .byte $00,$a0,$0a,$08,$aa,$a0,$00,$00
-lad48   ; line 6, right
-        .byte $00,$80,$80,$00,$00,$00,$00,$00,$00,$00,$c0,$00,$00,$00,$00,$00
-        .byte $c0,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$80
-        .byte $80,$80,$00,$00,$00,$40,$00,$00,$00,$40,$00,$00,$00,$00,$00,$00
-        .byte $00,$00,$00,$00,$00,$00,$00,$00,$80,$00,$00,$00,$00,$00,$00,$00
-        .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
-        .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
-        .byte $00,$00,$00,$00,$80,$00,$00,$00
-ladb0   ; line 7, left
-        .byte $00,$8a,$aa,$ff,$00,$0c,$c3,$eb,$15,$0e,$ff,$1c,$38,$3c,$1b,$07
-        .byte $07,$0f,$36,$36,$1b,$78,$38,$0e,$07,$07,$1c,$02,$20,$00,$00,$8a
-        .byte $8a,$8a,$8a,$95,$04,$1c,$22,$40,$0e,$07,$0f,$1c,$1e,$78,$38,$0e
-        .byte $0f,$0e,$38,$1b,$36,$0d,$36,$00,$80,$00,$14,$45,$04,$40,$01,$01
-        .byte $05,$55,$14,$41,$05,$82,$82,$a0,$a2,$80,$80,$8a,$a2,$28,$0a,$aa
-        .byte $a0,$82,$aa,$82,$a0,$82,$a8,$0a,$28,$a2,$a2,$aa,$28,$28,$28,$0a
-        .byte $00,$a0,$0a,$20,$aa,$a0,$00,$00
-lae18   ; line 7, right
-        .byte $00,$80,$80,$00,$00,$00,$00,$00,$00,$00,$c0,$00,$00,$00,$00,$00
-        .byte $00,$00,$00,$00,$00,$00,$00,$00,$80,$00,$00,$40,$00,$80,$80,$80
-        .byte $80,$80,$80,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
-        .byte $00,$00,$00,$00,$00,$80,$00,$00,$80,$00,$00,$00,$00,$00,$00,$00
-        .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
-        .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
-        .byte $00,$00,$00,$00,$80,$00,$00,$00
-lae80   ; line 8, left
-        .byte $00,$8a,$aa,$c3,$00,$aa,$ff,$eb,$15,$7b,$ff,$37,$3c,$66,$1b,$0d
-        .byte $0f,$19,$76,$36,$1b,$d8,$6c,$1b,$06,$0d,$36,$20,$0a,$80,$00,$8a
-        .byte $8a,$8a,$8a,$80,$14,$36,$48,$4a,$7b,$0f,$19,$1e,$33,$d8,$6c,$1b
-        .byte $0d,$1b,$6c,$1b,$76,$0d,$36,$80,$80,$14,$55,$45,$04,$40,$01,$01
-        .byte $05,$45,$10,$41,$05,$82,$82,$a0,$a2,$80,$80,$8a,$a2,$28,$0a,$a2
-        .byte $a0,$82,$8a,$82,$a0,$82,$a8,$0a,$28,$a2,$aa,$aa,$82,$28,$80,$28
-        .byte $28,$a0,$0a,$20,$aa,$28,$00,$00
-laee8   ; line 8, right
-        .byte $00,$80,$80,$00,$00,$80,$00,$00,$40,$00,$c0,$80,$00,$00,$80,$80
-        .byte $00,$80,$00,$00,$00,$00,$00,$00,$c0,$80,$00,$40,$40,$00,$00,$80
-        .byte $80,$80,$80,$00,$00,$00,$00,$00,$00,$00,$80,$00,$00,$00,$00,$00
-        .byte $80,$00,$00,$80,$00,$80,$00,$80,$80,$00,$00,$00,$00,$00,$00,$00
-        .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
-        .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
-        .byte $00,$00,$00,$00,$80,$00,$00,$00
-laf50   ; line 9, left
-        .byte $00,$8a,$aa,$c3,$00,$aa,$c0,$ff,$10,$03,$ff,$30,$0e,$63,$18,$0d
-        .byte $1c,$31,$06,$36,$1b,$d8,$6c,$1b,$06,$0d,$36,$09,$21,$20,$00,$8a
-        .byte $8a,$8a,$8a,$8a,$15,$36,$50,$11,$03,$1c,$31,$07,$31,$d8,$6c,$1b
-        .byte $0d,$1b,$6c,$18,$06,$0d,$36,$80,$80,$55,$55,$45,$15,$45,$41,$01
-        .byte $05,$45,$10,$41,$05,$8a,$82,$a2,$a2,$80,$80,$82,$a2,$28,$8a,$a2
-        .byte $a0,$82,$82,$82,$a0,$88,$a2,$8a,$28,$a2,$28,$a2,$82,$28,$8a,$a0
-        .byte $28,$28,$28,$80,$00,$0a,$00,$00
-lafb8   ; line 9, right
-        .byte $00,$80,$80,$00,$00,$80,$00,$00,$00,$00,$c0,$00,$00,$00,$00,$80
-        .byte $00,$80,$00,$00,$00,$00,$00,$00,$c0,$80,$00,$00,$40,$00,$00,$80
-        .byte $80,$80,$80,$80,$00,$00,$80,$00,$00,$00,$80,$00,$80,$00,$00,$00
-        .byte $80,$00,$00,$00,$00,$80,$00,$80,$80,$00,$00,$00,$00,$00,$00,$00
-        .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
-        .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
-        .byte $00,$00,$00,$00,$00,$00,$00,$00
-lb020   ; line 10, left
-        .byte $00,$00,$00,$c3,$00,$00,$c0,$00,$10,$03,$ff,$30,$0c,$03,$38,$0d
-        .byte $0c,$30,$07,$06,$18,$b0,$6c,$1b,$03,$0d,$36,$01,$09,$02,$00,$00
-        .byte $00,$00,$00,$00,$00,$36,$10,$11,$03,$0c,$30,$06,$01,$b0,$0c,$1b
-        .byte $06,$1b,$6c,$38,$07,$0c,$06,$00,$00,$00,$00,$55,$15,$55,$55,$01
-        .byte $55,$55,$10,$55,$05,$8a,$aa,$aa,$a8,$aa,$80,$aa,$a2,$28,$aa,$a2
-        .byte $aa,$82,$82,$aa,$a0,$a2,$a2,$aa,$28,$aa,$20,$82,$82,$28,$aa,$80
-        .byte $28,$28,$28,$80,$00,$02,$00,$00
-lb088   ; line 10, right
-        .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$c0,$00,$00,$00,$00,$80
-        .byte $00,$00,$00,$00,$00,$00,$00,$00,$40,$80,$00,$00,$00,$00,$00,$00
-        .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$80,$00,$00,$00
-        .byte $80,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
-        .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
-        .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
-        .byte $00,$00,$00,$00,$00,$00,$00,$00
-
-lb0f0   ; (filler bytes?)
-        .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
 
         .align $100
 
