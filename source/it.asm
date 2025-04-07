@@ -255,7 +255,7 @@ _waitSoundFxFinishedL
 
 terminateGame
         jsr handleHighScoresEntry       ; check/handle entry into list of high scores
-        jsr displayGameOver
+;;;        jsr displayGameOver
 
 attractStateLoop
         ldx #$ff                        ; initialize long delay counter
@@ -1723,6 +1723,7 @@ _copyHighScoreDataToUpdated
         iny
         bne _copyHighScoreDataToUpdated
 
+.comment
         lda #DISK_CMD_LOAD              ; command: load file
         jsr loadSaveHighScores
 
@@ -1738,8 +1739,9 @@ _ensureSafeUpdateL
 
         lda #DISK_CMD_SAVE              ; command: save file
         jsr loadSaveHighScores
+.endcomment
 _exit
-        jmp attractStateLoop
+        jmp attractStateLoop            ; TODO BUG? does not return via RTS
 
 displayHighScores
         jsr clearBitmap0                ; clear bitmap 0 and turn off sprites
@@ -1856,8 +1858,8 @@ convertKeyCodeToAscii
         bne _convertJ1
         lda #$07                        ; cursor up -> converts to backspace
 _convertJ1
-        tay
-        lda tabKeyCodeToAscii,y
+;;;        tay
+;;;        lda tabKeyCodeToAscii,y
         ora #$80                        ; convert to high ascii
         rts
 
@@ -3296,9 +3298,12 @@ animDigLower
 getDemoControllerInput                  ; get simulated user input for demo
         lda keyboardCode                ; keyboard matrix code (no key: 0)
         bne _userEndsDemo               ; any key pressed -> end demo
+        beq _continueDemo               ; TODO EXPERIMENTAL NO JOYSTICK
+.comment
         lda Cia1PortA                   ; read joystick port #2
         and #$10                        ; joystick fire button?
         bne _continueDemo               ; no ->
+.endcomment
 _userEndsDemo
         lsr zpDemoUnused                ; variable unused (initialized to $01)
         lsr playerAlive                 ; 0: player dead, 1: player alive
@@ -3379,7 +3384,7 @@ _checkGameCmdKeyL
         pha                             ; as return address on stack
         lda gameCmdJmpTbl+0,y
         pha
-                rts                             ; jump to game command
+        rts                             ; jump to game command
 
 _handleKbdInputJ1
         lda controllerMode              ; 'J': Joystick, 'K': Keyboard
@@ -3652,11 +3657,13 @@ displayPlayerCheckEnemy                 ; display player, check for enemy collis
 ;;;        jsr pasteTileBitmap0            ; paste tile over bitmap 0 (no erase)
         lda #$00                        ; EXPERIMENTAL
         jsr printSpriteF256             ; EXPERIMENTAL
+.comment
         lda zpPlayerEnemyCollision      ; 0: no collision of player and enemy; 1: collision detected
         beq _exit                       ; no collision -> exit
         lda playerNoGoldPickedUp        ; 0: gold pick up in process, 1: no gold picked up
         beq _exit                       ; player picked up gold in this round -> exit
         lsr playerAlive                 ; change to: 0: player dead (from 1: alive)
+.endcomment
 _exit
         rts
 
@@ -5778,13 +5785,13 @@ _exitCursorLoop
 
 detectUserInput
         jsr handleEvents                ; TODO EXPERIMENTAL
-        lda Cia1PortA                   ; read joystick port 2
-        and #$0f                        ; mask: direction bits
-        eor #$0f                        ; invert active (positive logic)
-        bne _detectedUserInputEvent     ; direction detected ->
-        lda Cia1PortA                   ; read joystick port 2
-        and #$10                        ; fire button pressed?
-        beq _detectedUserInputEvent     ; yes ->
+;;;        lda Cia1PortA                   ; read joystick port 2
+;;;        and #$0f                        ; mask: direction bits
+;;;        eor #$0f                        ; invert active (positive logic)
+;;;        bne _detectedUserInputEvent     ; direction detected ->
+;;;        lda Cia1PortA                   ; read joystick port 2
+;;;        and #$10                        ; fire button pressed?
+;;;        beq _detectedUserInputEvent     ; yes ->
         lda keyboardCode                ; keyboard matrix code (no key: 0)
         bne _detectedUserInputEvent
 
@@ -7153,115 +7160,6 @@ tabIrisCloseMask
 ; tabIrisCloseMask
 ;         .byte $fc,$fc,$f3,$f3,$cf,$cf,$3f,$3f
 
-
-;============== begin assembler leftovers ============
-
-        .text "ameover"
-        .word displayGameOver
-
-        .text $88,"gameovr2"
-        .word $8ecd                     ; _spinGameOverPhase1L
-
-        .text $84,"ban1"
-        .word $8f24                     ; _frame0
-
-        .text $84,"ban2"
-        .word $8f35                     ; _frame1
-
-        .text $84,"ban3"
-        .word $8f46                     ; _frame2
-
-        .text $84,"ban4"
-        .word $8f57                     ; _frame3
-
-        .text $84,"ban5"
-        .word $8f68                     ; _frame4
-
-        .text $84,"ban6"
-        .word $8f79                     ; _frame5
-
-        .text $84,"ban7"
-        .word $8f8a                     ; _frame6
-
-        .text $84,"ban8"
-        .word $8f9b                     ; _frame7
-
-        .text $84,"ban9"
-        .word $8fac                     ; _frame8
-
-        .text $85,"ban10"
-        .word $8fbd                     ; _frame9
-
-        .text $85,"ban11"
-        .word $8fce                     ; _frame10
-
-        .text $87,"bandat0"
-        .word gameOverLine00
-
-        .text $87,"bandat1"
-        .word gameOverLine01
-
-        .text $87,"bandat2"
-        .word gameOverLine02
-
-        .text $87,"bandat3"
-        .word gameOverLine03
-
-        .text $87,"bandat4"
-        .word gameOverLine04
-
-        .text $87,"bandat5"
-        .word gameOverLine05
-
-        .text $87,"bandat6"
-        .word gameOverLine06
-
-        .text $87,"bandat7"
-        .word gameOverLine07
-
-        .text $87,"bandat8"
-        .word gameOverLine08
-
-        .text $87,"bandat9"
-        .word gameOverLine09
-
-        .text $88,"bandat10"
-        .word gameOverLine0a
-
-        .text $87,"banvect"
-        .word GameOverLineData
-
-        .text $87,"drawend"
-        .word displayGameOverFrame
-
-        .text $88,"drawend1"
-        .word $9085                     ; _copyGameOverLinesL
-
-        .text $86,"drawit"
-        .word $90a2                     ; _copyGameOverColumnsL
-
-        .text $88,"drawsave"
-        .word $90a6                     ; _ldaBitmapByte
-
-        .text $88,"drawend3"
-        .word $90ba                     ; _continueNextLine
-
-        .text $87,"banwait"
-        .word $90ca                     ; _delayL
-
-        .text $88,"banwrts2"
-        .word $90e0                     ; _exitGameOverDisplay
-
-        .text $87,"bantime"
-        .word spinGameOverDelay
-
-        .text $88,"drawincr"
-        .word incZpSrcPtr
-
-        .text $88,"drawinc2"
-        .word $90eb                     ; _skipInc
-
-;================ end assembler leftovers ============
 
 
 jingleGoldCompleteMax

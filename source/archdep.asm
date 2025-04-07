@@ -691,7 +691,7 @@ testSprites
         rts
 
 delayF256
-        lda #$5
+        lda #$1
         sta _delay
 _delayL1
         ldx #$00
