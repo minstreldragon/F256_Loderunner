@@ -149,6 +149,9 @@ bitmapOffsetX                           ; horizontal bitmap offset of shape
 rowIterator                             ; row iterator for init routine (25..0)
         .byte ?                         ; $1327
 
+joystickCode                            ; joystick code (no key: $00)
+        .byte ?
+
 keyboardCode                            ; keyboard matrix code (no key: $00)
         .byte ?                         ; $1328
 

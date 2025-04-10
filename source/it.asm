@@ -269,8 +269,9 @@ _attractStateLoopJ1
 
 _longDelayLoop
 ;;;        lda Cia1PortA                   ; read joystick port 2
-;;;        and #$10                        ; fire button pressed?
-;;;        beq enterPlayGameMode           ; yes -> play the game
+        lda joystickCode                ; EXPERIMENTAL current joystick value
+        and #$10                        ; fire button pressed?
+        beq enterPlayGameMode           ; yes -> play the game
         lda keyboardCode                ; keyboard matrix code (no key: 0)
         cmp #KEY_CODE_CTRL+KEY_CODE_E   ; <Ctrl>-E: Enter Edit mode
         bne _checkKeyPressed            ; no ->
@@ -3298,12 +3299,10 @@ animDigLower
 getDemoControllerInput                  ; get simulated user input for demo
         lda keyboardCode                ; keyboard matrix code (no key: 0)
         bne _userEndsDemo               ; any key pressed -> end demo
-        beq _continueDemo               ; TODO EXPERIMENTAL NO JOYSTICK
-.comment
-        lda Cia1PortA                   ; read joystick port #2
+;;;        lda Cia1PortA                   ; read joystick port #2
+        lda joystickCode                ; EXPERIMENTAL current joystick value
         and #$10                        ; joystick fire button?
         bne _continueDemo               ; no ->
-.endcomment
 _userEndsDemo
         lsr zpDemoUnused                ; variable unused (initialized to $01)
         lsr playerAlive                 ; 0: player dead, 1: player alive
@@ -3478,7 +3477,8 @@ readJoystick                            ; read and evaluate joystick
         ; joystick handling see register $dc00:
         ; https://sta.c64.org/cbm64mem.html
 
-        lda Cia1PortA                   ; read joystick port #2
+;;;        lda Cia1PortA                   ; read joystick port #2
+        lda joystickCode                ; EXPERIMENTAL current joystick value
         and #$10                        ; joystick fire button?
         bne _joyCheckVertical           ; no ->
         lda zpPlayerOrientation         ; $ff: player facing left, $01: facing right
@@ -3496,7 +3496,8 @@ _joyDigLeft
         rts
 
 _joyCheckVertical
-        lda Cia1PortA                   ; read joystick port #2
+;;;        lda Cia1PortA                   ; read joystick port #2
+        lda joystickCode                ; EXPERIMENTAL current joystick value
         sta zpJoystickPort
         and #$02                        ; joystick down?
         beq _joyDown                    ; yes ->
@@ -5786,12 +5787,14 @@ _exitCursorLoop
 detectUserInput
         jsr handleEvents                ; TODO EXPERIMENTAL
 ;;;        lda Cia1PortA                   ; read joystick port 2
-;;;        and #$0f                        ; mask: direction bits
-;;;        eor #$0f                        ; invert active (positive logic)
-;;;        bne _detectedUserInputEvent     ; direction detected ->
+        lda joystickCode                ; EXPERIMENTAL current joystick value
+        and #$0f                        ; mask: direction bits
+        eor #$0f                        ; invert active (positive logic)
+        bne _detectedUserInputEvent     ; direction detected ->
 ;;;        lda Cia1PortA                   ; read joystick port 2
-;;;        and #$10                        ; fire button pressed?
-;;;        beq _detectedUserInputEvent     ; yes ->
+        lda joystickCode                ; EXPERIMENTAL current joystick value
+        and #$10                        ; fire button pressed?
+        beq _detectedUserInputEvent     ; yes ->
         lda keyboardCode                ; keyboard matrix code (no key: 0)
         bne _detectedUserInputEvent
 
@@ -6678,7 +6681,8 @@ _delayL                                 ; delay spinGameOverDelay * 256 times (b
         bne _delayL
 
         inc spinGameOverDelay           ; inc frame delay when spinning the "GAME OVER" display
-        lda Cia1PortA                   ; read joystick port 2
+;;;        lda Cia1PortA                   ; read joystick port 2
+        lda joystickCode                ; EXPERIMENTAL current joystick value
         and #$10                        ; fire button pressed?
         beq _exitGameOverDisplay        ; yes -> exit
         lda keyboardCode                ; keyboard matrix code (no key: 0)

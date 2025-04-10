@@ -97,7 +97,6 @@ initF256                                ; initialize F256
 
         jsr initSpritesF256
         jsr testSprites                 ; EXPERIMENTAL: test sprites
-;        jsr testKeyboard
 
 .enc "high"
 .comment
@@ -188,7 +187,9 @@ event_timer
         jmp event_timer_handler
 
 event_joystick
-        jsr printJoyEvent
+        lda event.joystick.joy1         ; joystick 0 value
+        eor #$ff                        ; convert to C64 convention
+        sta joystickCode
         rts
 
 event_key_pressed
@@ -996,7 +997,7 @@ loadBoardF256
         lsr
         lsr
         lsr
-        clc
+        asl                             ; calc bank address (also clears carry)
         adc #$30
         jsr setSwapArea                 ; bank in level data
 
