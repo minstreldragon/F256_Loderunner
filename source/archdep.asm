@@ -97,6 +97,7 @@ initF256                                ; initialize F256
 
         jsr initSpritesF256
         jsr testSprites                 ; EXPERIMENTAL: test sprites
+;        jsr testKeyboard
 
 .enc "high"
 .comment
@@ -156,48 +157,68 @@ handleEvents
         bcs _done
 
         ; handle the event
-        jsr _dispatch
+        jsr dispatchEvent
         jmp handleEvents                    ; continue until the queue is drained
 
 _done
         rts
 
-_dispatch
+dispatchEvent
         ; get the event's type
         lda event.type
+        ldy #$ff
+_dispatchEventL
+        iny
+        lda tblEventKinds,y
+        beq _exit                       ; ignore anything not handled
+        cmp event.type                  ; matches current event type?
+        bne _dispatchEventL
+        tya                             ; call the appropriate handler
+        asl
+        tay
+        lda tblEventHandlers+1,y
+        pha
+        lda tblEventHandlers+0,y
+        pha
+_exit
+        rts                             ; dispatch event or exit
 
-        ; call the appropriate handler
-        cmp #kernel.event.key.PRESSED
-        beq event_key_pressed
-        cmp #kernel.event.file.NOT_FOUND
-        beq event_file_not_found
-        cmp #kernel.event.file.ERROR
-        beq event_file_not_found
-        cmp #kernel.event.file.OPENED
-        beq event_file_opened
-        cmp #kernel.event.file.DATA
-        beq event_file_data
-        cmp #kernel.event.file.EOF
-        beq event_file_eof
-        cmp #kernel.event.file.CLOSED
-        beq event_file_closed
-        cmp #kernel.event.file.WROTE
-        beq event_file_wrote
-        cmp #kernel.event.timer.EXPIRED
-        beq event_timer
-        rts                                 ; ignore anything not handled
 
 event_timer
         jmp event_timer_handler
 
+event_joystick
+        jsr printJoyEvent
+        rts
+
 event_key_pressed
+;        jsr printKbdEvent               ; TODO EXPERIMENTAL TESTING
         lda event.key.ascii
-        beq _exit                       ; suppress unmapped keys (Shift)
+        bne _key_pressed_j1
+        bit event.key.flags             ; modifier event?
+        bpl _exit                       ; not a modifier
+        lda event.key.raw
+        cmp #$02
+        bcc _exit
+        cmp #$03+1
+        bcs _exit
+        lda #$80
+        sta ctrl_active
+        jmp _exit
+
+_key_pressed_j1
         cmp #$60                        ; upper case?
-        bcc _key_pressed_j1             ; yes ->
+        bcc _key_pressed_j2             ; yes ->
         sec
         sbc #$20                        ; to upper case
-_key_pressed_j1
+_key_pressed_j2
+        bit ctrl_active                 ; <CTRL> active?
+        bpl _key_pressed_j3             ; no ->
+        clc
+        adc #KEY_CODE_CTRL+KEY_CODE_A-1 ; convert to <CTRL>-letter for game
+_key_pressed_j3
+
+
 .comment
         ora #$80                        ; Ultima III expects uppermost bit set
         cmp #KEY_NORTH_ALT
@@ -226,6 +247,21 @@ _key_pressed_j2
 .endcomment
         sta keyboardCode
         ; TODO: do something with key code
+_exit
+        rts
+
+event_key_released
+        lda event.key.ascii
+        bne _exit
+        bit event.key.flags             ; modifier event?
+        bpl _exit                       ; not a modifier
+        lda event.key.raw
+        cmp #$02
+        bcc _exit
+        cmp #$03+1
+        bcs _exit
+        lda #$00
+        sta ctrl_active
 _exit
         rts
 
@@ -300,6 +336,9 @@ _event_file_wrote_j2
 KBD
         .byte $00
 
+ctrl_active
+        .byte $00
+
 file_opened
         .byte $00
 file_closed
@@ -312,6 +351,32 @@ file_next_chunk
 timer_events
         .fill TIMER_EVENT_MAX+1,$00
 
+tblEventKinds
+        .byte kernel.event.JOYSTICK
+        .byte kernel.event.key.PRESSED
+        .byte kernel.event.key.RELEASED   ; TODO ONLY FOR TESTING
+        .byte kernel.event.file.NOT_FOUND
+        .byte kernel.event.file.ERROR
+        .byte kernel.event.file.OPENED
+        .byte kernel.event.file.DATA
+        .byte kernel.event.file.EOF
+        .byte kernel.event.file.CLOSED
+        .byte kernel.event.file.WROTE
+        .byte kernel.event.timer.EXPIRED
+        .byte $00
+
+tblEventHandlers
+        .word event_joystick-1
+        .word event_key_pressed-1
+        .word event_key_released-1
+        .word event_file_not_found-1
+        .word event_file_not_found-1
+        .word event_file_opened-1
+        .word event_file_data-1
+        .word event_file_eof-1
+        .word event_file_closed-1
+        .word event_file_wrote-1
+        .word event_timer-1
 
 setColorLut
         lda #$01                        ; Set the I/O page to #1
@@ -498,7 +563,6 @@ getBitmapPtrF256
         jsr setBigSwapArea
         rts
 
-
 replaceTileBm0
         asl                             ; shape id as 16 bit pointer
         tay
@@ -668,6 +732,49 @@ testSprites
 
         rts
 
+
+testKeyboard
+        jsr handleEvents
+        jmp testKeyboard
+
+printByte
+        pha
+        lsr
+        lsr
+        lsr
+        lsr
+        jsr printDigit
+        pla
+        and #$0f
+        jsr printDigit
+        jsr printString
+        .text "  ",$00
+        rts
+
+printKbdEvent
+        lda #$00
+        sta zpCursorRow
+        sta zpCursorCol
+        lda event.type
+        jsr printByte
+        lda event.key.raw
+        jsr printByte
+        lda event.key.ascii
+        jsr printByte
+        lda event.key.flags
+        jsr printByte
+        rts
+
+printJoyEvent
+        lda #$02
+        sta zpCursorRow
+        lda #$00
+        sta zpCursorCol
+        lda event.joystick.joy0
+        jsr printByte
+        lda event.joystick.joy1
+        jsr printByte
+        rts
 
 .comment
         lda #<spritesF256
