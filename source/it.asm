@@ -37,8 +37,7 @@ resetGame
         sta LSTX                        ; Matrix code of last key pressed ($40: none pressed)
         lda #$05
         sta gameDelay                   ; 3: fastest, 8: slowest
-;;;        lda #PETSCII_J
-        lda #PETSCII_K                  ; TODO: EXPERIMENTAL
+        lda #PETSCII_J
         sta controllerMode              ; 'J': Joystick, 'K': Keyboard
         lda #GAME_MODE_TITLE_SCREEN     ; set game mode to title screen
         sta gameMode                    ; 0: start screen, 1: demo, 2: play, 3: play from edit, 5: editor
