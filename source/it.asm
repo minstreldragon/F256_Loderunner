@@ -6,7 +6,7 @@
 
         lda #$00
         sta volume                      ; sound playback volume - 0: off, $ff: on
-;;        jsr initHwResources             ; initialize HW resources
+        jsr initHwResources             ; initialize HW resources
         jsr initF256                    ; initialize F256
 ;;        lda #DISK_CMD_LOAD              ; command: load file
 ;;        jsr loadSaveHighScores
@@ -151,7 +151,10 @@ _initEnemyMovement
 playStateLoop
         jsr handlePlayer                ; handle player movement
         lda playerAlive                 ; 0: player dead, 1: player alive
-        beq playerDies                  ; another one bites the dust ->
+        bne _playStateLoopJ1
+;;;        beq playerDies                  ; another one bites the dust ->
+        jmp playerDies                  ; another one bites the dust ->
+_playStateLoopJ1
         lda goldLeft                    ; all gold collected?
         bne checkLevelFinished          ; not yet, or exit ladders already displayed ->
         jsr initJingleGoldComplete      ; play a jingle (all gold collected)
@@ -176,12 +179,12 @@ _levelNotFinished
         beq playerDies
 _delayGameLoop
         jsr handleEvents
-        jsr delayF256                   ; EXPERIMENTAL
-;;;        lda irqFrameCounter             ; free running counter increased with each IRQ
-;;;        cmp gameDelay                   ; 3: fastest, 8: slowest
-;;;        bcc _delayGameLoop
-;;;        lda #$03
-;;;        sta irqFrameCounter             ; free running counter increased with each IRQ
+;;;        jsr delayF256                   ; EXPERIMENTAL
+        lda irqFrameCounter             ; free running counter increased with each IRQ
+        cmp gameDelay                   ; 3: fastest, 8: slowest
+        bcc _delayGameLoop
+        lda #$03
+        sta irqFrameCounter             ; free running counter increased with each IRQ
         jmp playStateLoop
 
 _finishLevel
@@ -190,8 +193,7 @@ _finishLevel
 _waitFinishTune
         lda tuneDataEnd                 ; offset: end of current tune
         cmp tunePlayOffset              ; offset: playback position in current tune
-                                        ; TODO: FIX
-;;;        bne _waitFinishTune             ; wait until tune has finished playing
+        bne _waitFinishTune             ; wait until tune has finished playing
 
         jsr selectNextJingle            ; select next "gold complete" jingle to play
         inc lives                       ; add bonus live
@@ -239,7 +241,7 @@ _playerDiesInPlayMode
 _playTuneL
         lda tuneDataEnd                 ; offset: end of current tune
         cmp tunePlayOffset              ; offset: playback position in current tune
-;;;        bne _playTuneL               ; TODO EXPERIMENTAL SOUND FIX
+        bne _playTuneL
         lda #$00
         sta playerDiggingState          ; 0: player not digging, 1: digging right, -1 ($ff): digging left
         lda #$20
@@ -247,8 +249,7 @@ _playTuneL
         jsr printLives
 _waitSoundFxFinishedL
         lda soundFxPlayerDying          ; sound effect player dying, current pitch
-                                        ; TODO EXPERIMENTAL SOUND FIX
-;;;        bne _waitSoundFxFinishedL       ; wait for sound effect to finish (IRQ)
+        bne _waitSoundFxFinishedL       ; wait for sound effect to finish (IRQ)
         lda lives
         bne playerDiesInitBoard         ; (re)initialize board after player died
 
@@ -721,6 +722,9 @@ _irqJ3
         sta SidVoice1FreqHb             ; store in SID voice 1
 
         jsr handleJinglePlayback        ; play back jingle if active
+        rts                             ; EXPERIMENTAL: exit custom IRQ
+
+.comment
 
         lda LSTX                        ; Matrix code of last key pressed ($40: none pressed)
         bne _handleKeyboardJ1           ; KEY_CODE_INSERT_DELETE = 0?
@@ -743,10 +747,13 @@ _preventKeyRepeat
 _storeKeyCode
         sta previousKeyboardCode        ; last registered keyboard code (prevent repeat)
         sta keyboardCode                ; keyboard matrix code (no key: 0)
+
 _finishIrq
         jmp c64KernelStandardIrq        ; KERNEL: standard IRQ routine (reads keyboard)
+.endcomment
 
 initHwResources
+.comment
         lda R6510                       ; processor port ($01)
         and #$fe                        ; disable BASIC, $a000-$bfff RAM
         sta R6510
@@ -795,10 +802,12 @@ _initTblsBmpLinePtrL2
         lda #>irqHandler
         sta CINV+1
         cli
+.endcomment
         lda #$b0
         sta SidVoice1SustainRelease
         lda #$11
         sta SidVoice1CtrlReg
+.comment
         ldx #$30                        ; sprite 0: player ($30)
         stx SpritePtrs+0
         inx                             ; sprite 2: enemy 0 ($31)
@@ -835,6 +844,7 @@ _clearSpriteDefsL                       ; clear sprite definitions
 
         lda #$ff                        ; enable all sprites
         sta VicSpriteEnable
+.endcomment
         rts
 
 setColorMemory
@@ -3595,6 +3605,7 @@ playerCheckCollectGold                  ; check for and collect gold chests
         ldx #$10                        ; minimum raster beam position
         ldy #$20                        ; maximum raster beam position
 
+.comment
         lda #$04                        ; minimum delta between consecutive pitch values
         jsr randomizeGoldJinglePitchVal ; randomize pitch for voice 1
         sta _goldJingleData+1
@@ -3610,14 +3621,21 @@ playerCheckCollectGold                  ; check for and collect gold chests
         lda #$04                        ; minimum delta between consecutive pitch values
         jsr randomizeGoldJinglePitchVal ; randomize pitch for voice 1
         sta _goldJingleData+13
+.endcomment
 
 
         jsr initJingleCollectGold       ; start playing gold collected jingle
 _goldJingleData
+        .byte $04,$10,$ff,$b0           ; jingle data:
+        .byte $04,$14,$ff,$a0           ; note time / voice 1 / voice 2 / volume
+        .byte $04,$18,$ff,$90
+        .byte $04,$1c,$ff,$a0
+.comment
         .byte $04,$00,$ff,$b0           ; jingle data:
         .byte $04,$00,$ff,$a0           ; note time / voice 1 / voice 2 / volume
         .byte $04,$00,$ff,$90
         .byte $04,$00,$ff,$a0
+.endcomment
         .byte $00
 
         dec goldLeft                    ; decrease # of gold chests left

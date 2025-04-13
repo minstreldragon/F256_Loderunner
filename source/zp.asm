@@ -53,6 +53,7 @@ zpRleDataPtr                            ; pointer to RLE packed data
 zpMemPtr
 zpBmpPtr
 zpBmpPtr0                               ; pointer into bitmap 0
+zpDstPtr
         .word ?                         ; $0f/$10
 
 zpBmpPtr1                               ; pointer into bitmap 1

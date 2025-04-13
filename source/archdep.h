@@ -1071,7 +1071,6 @@ Shapes = $1800                          ; expanded shape data:
 
 shapeShiftTables = $c000                ; tables for shifting shapes into position
 shapeShiftTablesEnd = $c800             ; end of shapeShiftTable
-.endcomment
 
 tuneDataNoteLength = $c000
 tuneDataVoice0 = $c100
@@ -1080,19 +1079,20 @@ tuneDataVolume = $c300
 
 highScoreDataBackup = $c800
 highScoreDataUpdated = $c900
+.endcomment
 
 LSTX = $c5                              ; Matrix code of last key pressed ($40: none pressed)
 SHFLAG = $028d                          ; Shift Flag (bit 0: SHIFT, bit 1: C=, bit 2: CTRL)
 
-ScreenRAM = $0400
-SpritePtrs = $07f8                      ; sprite pointers location
+;;; ScreenRAM = $0400
+;;; SpritePtrs = $07f8                      ; sprite pointers location
 TblBmpLinePtrLb = $0e00                 ; Table: line to bitmap pointer (lb)
 TblBmpLinePtrHb = $0f00                 ; Table: line to bitmap pointer (hb)
-TblScreenLinePtrLb = $1380              ; Table: line to screen pointer (lb)
-TblScreenLinePtrHb = $1399              ; Table: line to screen pointer (hb)
+;;;TblScreenLinePtrLb = $1380              ; Table: line to screen pointer (lb)
+;;;TblScreenLinePtrHb = $1399              ; Table: line to screen pointer (hb)
 Bitmap0 = $2000
 Bitmap1 = $4000
-ColorRAM = $d800
+;;;ColorRAM = $d800
 
 C64KernelStandardIrq = $ea31
 
@@ -1150,37 +1150,6 @@ VicSprite4Color = $d02b
 VicSprite5Color = $d02c
 VicSprite6Color = $d02d
 VicSprite7Color = $d02e
-.comment
-SidVoice1FreqLb = $d400
-SidVoice1FreqHb = $d401
-SidVoice1PulseWidthLb = $d402
-SidVoice1PulseWidthHb = $d403
-SidVoice1CtrlReg = $d404
-SidVoice1AttackDecay = $d405
-SidVoice1SustainRelease = $d406
-SidVoice2FreqLb = $d407
-SidVoice2FreqHb = $d408
-SidVoice2PulseWidthLb = $d409
-SidVoice2PulseWidthHb = $d40a
-SidVoice2CtrlReg = $d40b
-SidVoice2AttackDecay = $d40c
-SidVoice2SustainRelease = $d40d
-SidVoice3FreqLb = $d40e
-SidVoice3FreqHb = $d40f
-SidVoice3PulseWidthLb = $d410
-SidVoice3PulseWidthHb = $d411
-SidVoice3CtrlReg = $d412
-SidVoice3AttackDecay = $d413
-SidVoice3SustainRelease = $d414
-SidFilterCutoffLb = $d415
-SidFilterCutoffHb = $d416
-SidFilterCtrlReg = $d417
-SidFilterModeVolume = $d418
-SidAdPaddle1 = $d419
-SidAdPaddle2 = $d41a
-SidVoice3Output = $d41b
-SidVoice3AdsrOutput = $d41c
-.endcomment
 Cia1PortA = $dc00
 Cia1PortB = $dc01
 Cia1PortADataDir = $dc02

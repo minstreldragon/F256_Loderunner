@@ -14,13 +14,17 @@ STRIP_UNUSED :?= true
 
 TIMER_EVENT_MAX = 1
 
-; The music timer interval is calculated from:
+; The timer interval is calculated from:
 ; 6522 VIA clock (Apple II):  1.023 MHz
 ; 6522 VIA Clock (Foenix):   25.125 MHz / 4
 ; Timer interval (Apple II):  16666 ($411a)
 ; Timer interval (Foenix) = (VIA clock Foenix / VIA clock Apple) * Timer interval Apple
 ; Since timer interval is larger than 16 bit value, half the interval is used
-MUSIC_TIMER_INTERVAL = 51165
+
+; To produce a 60 Hz timer:
+; 25.125 MHz / 60 * 4 Hz = 25125 * 10^3 / 240  = 104688
+; divided by 2: 52344
+VIA_60_HZ_TIMER_INTERVAL = 52344
 
 
 ; architecture specific constants

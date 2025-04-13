@@ -143,6 +143,8 @@ initF256                                ; initialize F256
         lda #$04
         jsr replaceTileBm0
 
+        jsr setupLodeRunnerIrq
+
         rts
 
 
@@ -1217,7 +1219,7 @@ setupTiBiMap
         lda #11*11
         jsr clearTileMap
 
-.comment
+;;;.comment
         lda #<tile_map_tile_window
         sta zpDstPtr+0
         lda #>tile_map_tile_window
@@ -1242,7 +1244,7 @@ _clearTilemapL1
         sta zpDstPtr+1
         dex
         bne _clearTilemapL2
-.endcomment
+;;;.endcomment
 
 
         lda #$00                ; start tile matrix with ID 0
@@ -1340,6 +1342,7 @@ _setMbTilemapL2
         cpx #5
         bne _setBmTilemapL1             ; repeat for all lines of map area
         rts
+.endcomment
 
 
 moveKernelToRam
@@ -1393,6 +1396,7 @@ _copyL
         rts
 
 
+
 customIsr
 .logical customIsrAddr
         pha                     ; save registers a,x,y
@@ -1431,8 +1435,13 @@ customIsr
         lda #$03                ; switch to MLUT3 containing the user code
         sta MMU_MEM_CTRL
 
-        jsr irqMusicJ1          ; play back music
+        dec viaDelay
+        bpl _skipIrq
+        lda #$01
+        sta viaDelay
+        jsr irqHandler          ; handle Lode Runner IRQ
 
+_skipIrq
         ; restore MMU configuration for banks 4 and 5
         lda #$b3                ; active MLUT = 3, Edit MLUT #3
         sta MMU_MEM_CTRL
@@ -1460,6 +1469,9 @@ _restoreMmuConfig
         pla
 vIrqOriginal = * + 1
         jmp $c0de               ; chain original IRQ-routine
+
+viaDelay
+        .byte $00
 .endlogical
 customIsrEnd
 
@@ -1482,4 +1494,45 @@ _copyMemoryL1
         bne _copyMemoryL1
         rts
 
-.endcomment
+
+initViaTimer
+        lda #$40                        ; T1 Timer: Continuous Interrupts
+        sta VIA_ACR                     ; VIA: Auxiliary Control Register
+        lda #<VIA_60_HZ_TIMER_INTERVAL  ; timer value, low byte
+        sta VIA_T1C_L                   ; VIA: T1 Low-Order Counter/Latches
+        lda #>VIA_60_HZ_TIMER_INTERVAL  ; timer value, high byte
+        sta VIA_T1C_H                   ; VIA: T1 High-Order Counter - kick off the timer
+        rts
+
+enableViaIrq
+        ; also enable VIA0 interrupt on Interrupt Controller
+        lda INT_MASK_1
+        and #~INT15_VIA                 ; unmask the VIA0 interrupt
+        sta INT_MASK_1
+
+        lda #INT15_VIA                  ; clear pending VIA interrupts
+        sta INT_PEND_1
+        rts
+
+enableViaTimerIrq
+        lda #$7f                        ; disable all VIA interrupts
+        sta VIA_IER
+        lda #$c0                        ; enable Timer1 interrupts
+        sta VIA_IER                     ; VIA: Interrupt Enable Register
+        lda VIA_T1C_L                   ; EXPERIMENTAL: clear timer1 interrupt flag
+        lda #$7f
+        sta VIA_IFR                     ; EXPERIMENTAL: clear interrupt flag
+        lda #INT15_VIA                  ; EXPERIMENTAL: VIA interrupt flag
+        sta INT_PEND_1                  ; EXPERIMENTAL: clear the flag for the VIA IRQ
+        rts
+
+setupLodeRunnerIrq
+        jsr initViaTimer
+        sei
+        jsr moveKernelToRam
+        jsr installCustomIsr
+        jsr enableViaIrq
+        jsr enableViaTimerIrq
+        cli
+        rts
+

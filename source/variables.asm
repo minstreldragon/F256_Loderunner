@@ -149,8 +149,8 @@ bitmapOffsetX                           ; horizontal bitmap offset of shape
 rowIterator                             ; row iterator for init routine (25..0)
         .byte ?                         ; $1327
 
-joystickCode                            ; joystick code (no key: $00)
-        .byte ?
+joystickCode                            ; joystick code (no key: $ff)
+        .byte $ff
 
 keyboardCode                            ; keyboard matrix code (no key: $00)
         .byte ?                         ; $1328
@@ -225,5 +225,20 @@ boardPacked                             ; current board, packed by combining two
 
 highScoreData                           ; high score data (disk only)
         .fill $100                      ; $1100
+
+highScoreDataBackup                     ; high score data (backup)
+        .fill $100                      ; $c800
+
+highScoreDataUpdated                    ; high score data (updated)
+        .fill $100                      ; $c900
+
+tuneDataNoteLength
+        .fill $100                      ; $c000
+tuneDataVoice0
+        .fill $100                      ; $c100
+tuneDataVoice1
+        .fill $100                      ; $c200
+tuneDataVolume
+        .fill $100                      ; $c300
 
 
