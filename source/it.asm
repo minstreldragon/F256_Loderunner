@@ -183,7 +183,8 @@ _delayGameLoop
         lda irqFrameCounter             ; free running counter increased with each IRQ
         cmp gameDelay                   ; 3: fastest, 8: slowest
         bcc _delayGameLoop
-        lda #$03
+;;;        lda #$03
+        lda #$02                        ; EXPERIMENTAL - limit maximum speed
         sta irqFrameCounter             ; free running counter increased with each IRQ
         jmp playStateLoop
 
@@ -266,6 +267,8 @@ attractStateLoop
 _attractStateLoopJ1
         lda #$03                        ; long delay counter: $030000
         sta zpLongDelayCtr
+        lda #$00                        ; EXPERIMENTAL
+        sta irqFrameCounter             ; EXPERIMENTAL
 
 _longDelayLoop
 ;;;        lda Cia1PortA                   ; read joystick port 2
@@ -281,10 +284,18 @@ _checkKeyPressed
         beq attractShowHighScores
         lda keyboardCode                ; keyboard matrix code (no key: 0)
         bne enterPlayGameMode           ; yes -> play the game
+
+.comment
         dex
         bne _longDelayLoop
         dey
         bne _longDelayLoop
+.endcomment
+        lda irqFrameCounter             ; EXPERIMENTAL
+        cmp #60                         ; EXPERIMENTAL
+        bne _longDelayLoop              ; EXPERIMENTAL
+        lda #$00
+        sta irqFrameCounter
         dec zpLongDelayCtr              ; long delay counter (highest byte)
         bne _longDelayLoop
 
@@ -376,6 +387,7 @@ tabEnemyTrappedDuration                 ; # of moves an enemy is trapped in a ho
 
 
 displayTitleScreen                      ; display the title screen
+        jsr displayTitleScreenF256
 .comment
         jsr clearBitmap0                ; clear bitmap 0 and turn off sprites
         lda #(COL_BLACK << 4 | COL_BLACK)

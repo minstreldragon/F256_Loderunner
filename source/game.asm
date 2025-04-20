@@ -19,5 +19,8 @@
 .include "variables.asm"                ; game variables
 
 shapesF256
-.binary "../assets/lr_shapes.bin"                 ; shapes
+.binary "../assets/lr_shapes.bin"       ; shapes
+
+titleScreenPacked
+.binary "../assets/lr_title.zx7"        ; title screen bitmap (packed)
 

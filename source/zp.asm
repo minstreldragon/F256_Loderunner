@@ -57,6 +57,7 @@ zpDstPtr
         .word ?                         ; $0f/$10
 
 zpBmpPtr1                               ; pointer into bitmap 1
+zpEcx                                   ; used for zx7 uncompressor
         .word ?                         ; $11/$12
 
 zpPrintDataPtr                          ; $13/$14
@@ -97,10 +98,12 @@ zpTmpProbeY                             ; temporary variable enemy probe Y
 zpRleCounter                            ; RLE uncompressor counter
 zpDriveStatus                           ; combined drive status: '0': OK
 zpCopyProtByteOffset                    ; copy protection check byte offset
+zpLastZx7
         .byte ?                         ; $1e
 
 zpBmpLinePtrHb                          ; bitmap line pointer (hb)
 zpRleValue                              ; current RLE run value
+zpTmpZx7
         .byte ?                         ; $1f
 
 zpEnemyTestY                            ; enemy test position Y

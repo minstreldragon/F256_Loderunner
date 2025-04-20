@@ -95,6 +95,7 @@ initF256                                ; initialize F256
         jsr setColorLut                 ; setup color LUT
         jsr clearBm0
 
+        jsr initSwapAreaC000            ; prepare $c000 for being uses as swap area
         jsr initSpritesF256
         jsr testSprites                 ; EXPERIMENTAL: test sprites
 
@@ -113,7 +114,6 @@ initF256                                ; initialize F256
         sta zpCursorCol
         jsr printString
         .text "LODE RUNNER",$00
-.endcomment
 
         lda #$00
         sta zpCursorRow
@@ -142,6 +142,7 @@ initF256                                ; initialize F256
         sta zpCursorCol
         lda #$04
         jsr replaceTileBm0
+.endcomment
 
         jsr setupLodeRunnerIrq
 
@@ -464,7 +465,7 @@ clearBm0
         lda #$10                ; start at phys. memory $010000
         sta _physBank
 _clearBmTilesetL1
-        jsr setSwapArea
+        jsr setSwapAreaA000
         lda #$a0                ; start filling at logical $a000
         sta _dest+2             ; high byte of destination
         ldx #$20                ; for all banks but the last fill $20 pages
@@ -493,7 +494,7 @@ _dest
         cmp #$20
         bne _clearBmTilesetL1
 
-        jsr resetSwapArea       ; restore swap area at $a000
+        jsr resetSwapAreaA000   ; restore swap area at $a000
         rts
 
 _physBank
@@ -653,9 +654,9 @@ tile_map_tile_window
 .endcomment
 
 
-resetSwapArea                   ; swap area at $a000
+resetSwapAreaA000               ; swap area at $a000
         lda #$0a
-setSwapArea
+setSwapAreaA000
         lsr                     ; convert address [24..31] to MMU bank
         pha
         lda #$b3                ; active MLUT = 3, Edit MLUT #3
@@ -672,6 +673,50 @@ setSwapArea
         sta MMU_IO_CTRL                 ; ($c000-$dfff is I/O)
 .endcomment
         rts
+
+initSwapAreaC000
+        lda #$b3                ; active MLUT = 3, Edit MLUT #3
+        sta MMU_MEM_CTRL
+        lda MMU_MEM_BANK_6      ; MMU Edit Register for bank 6 ($C000 - $DFFF)
+        sta defaultBank6        ; store the default configuration for later use
+        lda #$03
+        sta MMU_MEM_CTRL
+        rts
+
+setSwapAreaC000
+        lsr                     ; convert address [24..31] to MMU bank
+        pha
+        lda #$b3                ; active MLUT = 3, Edit MLUT #3
+        sta MMU_MEM_CTRL
+;;;        lda MMU_MEM_BANK_6      ; MMU Edit Register for bank 6 ($C000 - $DFFF)
+;;;        sta defaultBank6
+        pla
+        sta MMU_MEM_BANK_6      ; MMU Edit Register for bank 6 ($C000 - $DFFF)
+
+        lda #$03
+        sta MMU_MEM_CTRL
+
+        lda MMU_IO_CTRL                 ; ($c000-$dfff is I/O)
+        ora #%00000100                  ; disable I/O
+        sta MMU_IO_CTRL                 ; ($c000-$dfff is I/O)
+        rts
+
+resetSwapAreaC000               ; swap area at $c000
+        lda #$b3                ; active MLUT = 3, Edit MLUT #3
+        sta MMU_MEM_CTRL
+
+        lda defaultBank6
+        sta MMU_MEM_BANK_6      ; MMU Edit Register for bank 6 ($C000 - $DFFF)
+
+        lda #$03
+        sta MMU_MEM_CTRL
+
+        lda MMU_IO_CTRL                 ; ($c000-$dfff is I/O)
+        and #%11111011                  ; enable I/O
+        sta MMU_IO_CTRL                 ; ($c000-$dfff is I/O)
+
+        rts
+
 
 setBigSwapArea
         lsr                     ; convert address [24..31] to MMU bank
@@ -1001,7 +1046,7 @@ loadBoardF256
         lsr
         asl                             ; calc bank address (also clears carry)
         adc #$30
-        jsr setSwapArea                 ; bank in level data
+        jsr setSwapAreaA000             ; bank in level data
 
         pla
         and #$1f
@@ -1016,7 +1061,7 @@ _loadBoardL
         iny
         bne _loadBoardL
 
-        jsr resetSwapArea
+        jsr resetSwapAreaA000
         rts
 
 
@@ -1107,7 +1152,7 @@ clearMapAreaDungeon
         lda #$18                ; start at phys. memory $018000
         sta _physBank
 _clearBmTilesetL1
-        jsr setSwapArea
+        jsr setSwapAreaA000
         lda #$a0                ; start filling at logical $a000
         sta _dest+2             ; high byte of destination
         ldx #$20                ; for all banks but the last fill $20 pages
@@ -1136,7 +1181,7 @@ _dest
         cmp #$20
         bne _clearBmTilesetL1
 
-        jsr resetSwapArea       ; restore swap area at $a000
+        jsr resetSwapAreaA000   ; restore swap area at $a000
         rts
 
 _physBank
@@ -1349,13 +1394,13 @@ moveKernelToRam
         ; copy Kernel to RAM ($02e000-$02ffff)
 
         lda #$2e                        ; start at phys. memory $02e000
-        jsr setSwapArea                 ; make physical memory $2e000 available at $a000
+        jsr setSwapAreaA000             ; make physical memory $2e000 available at $a000
         lda #$e0                        ; source: $e000 (phys: $e000 ROM)
         ldy #$a0                        ; dest:   $a000 (phys: $e000 RAM)
         ldx #$20                        ; number of pages to copy
         jsr copyMemory
 
-        jsr resetSwapArea               ; restore original configuration for $a000
+        jsr resetSwapAreaA000           ; restore original configuration for $a000
 
         ldx #$3                         ; update all 4 MLUTs
 _moveKernelToRamL1
@@ -1536,3 +1581,230 @@ setupLodeRunnerIrq
         cli
         rts
 
+
+; ZX7 decompressor
+; by Peter Ferrie (peter.ferrie@gmail.com)
+
+; Parameters:
+;   zpSrcPtr: source address
+;   zpDstPtr: destination address
+;
+; Used Variables
+;   zpEcx = $e4                         ; 16 bit
+;   zpLastZx7
+;   zpTmpZx7
+
+; unpack zx7
+unpack_zx7
+    lda #$00
+    sta zpLastZx7
+    sta zpEcx+0
+    sta zpEcx+1
+
+dzx7s_copy_byte_loop
+    jsr getput                          ; fetch src byte, put to dst buffer
+dzx7s_main_loop
+    jsr dzx7s_next_bit                  ; read next source bit
+    bcc dzx7s_copy_byte_loop            ; if bit==0: copy next byte verbatim
+
+    sty zpTmpZx7                        ; zpTmpZx7 = 0 (counter)
+_dzx7s_len_size_loop
+    inc zpTmpZx7                        ; count successive '0' bits (following '1' bit)
+    jsr dzx7s_next_bit                  ; read next source bit
+    bcc _dzx7s_len_size_loop
+    bcs dzx7s_len_value_skip
+
+dzx7s_next_bit
+    asl zpLastZx7
+    bne dzx7s_next_bit_ret
+    jsr dzx7FetchByte                   ; fetch byte from src pointer
+    sec                                 ; mark 'zpLastZx7' byte as containing bits
+    rol
+    sta zpLastZx7
+
+dzx7s_next_bit_ret
+    rts
+
+dzx7s_len_value_loop
+    jsr dzx7s_next_bit                  ; read next source bit
+
+dzx7s_len_value_skip
+    rol zpEcx+0                         ; ecx = 1 << zpTmpZx7
+    rol zpEcx+1
+    bcs dzx7s_next_bit_ret              ; EOF: 16 zero-bits read ->
+    dec zpTmpZx7
+    bne dzx7s_len_value_loop
+    inc zpEcx+0                         ; minimum for repetition: 2
+    bne _skip_inc_ecx
+    inc zpEcx+1
+_skip_inc_ecx
+    jsr dzx7FetchByte                   ; fetch byte from src pointer
+    rol                                 ; 7 or 12 bit address?
+    sta zpTmpZx7                        ; low byte offset
+    tya                                 ; (A = 0)
+    bcc _dzx7s_offset_end               ; 7 bit address ->
+    lda #$10                            ; read additional 4 bits for hb address
+
+_dzx7s_rld_next_bit
+    pha
+    jsr dzx7s_next_bit                  ; read next source bit
+    pla
+    rol
+    bcc _dzx7s_rld_next_bit
+    tax
+    inx
+    txa
+    lsr
+
+_dzx7s_offset_end
+    sta zpTmpZx7+1                      ; high byte offset
+    ror zpTmpZx7+0                      ; rotate highest bit into address lb
+    lda zpSrcPtr+1                      ; temporarily store src pointer to stack
+    pha
+    lda zpSrcPtr+0
+    pha
+
+    lda zpDstPtr+0                      ; set local (new) src pointer
+    sbc zpTmpZx7+0                      ; (relative to current address)
+    sta zpSrcPtr+0
+    lda zpDstPtr+1
+    lda dstPage
+    sbc zpTmpZx7+1
+    sta zpSrcPtr+1
+
+; set source bank
+    jsr dzx7SetSourceBank
+
+another_getput
+    jsr getput2                         ; fetch src byte, put to dst buffer
+    jsr dececx
+    ora zpEcx+1
+    bne another_getput
+    pla                                 ; restore src pointer from stack
+    sta zpSrcPtr+0
+    pla
+    sta zpSrcPtr+1
+    bne dzx7s_main_loop
+
+dececx
+    ldx zpEcx+0
+    bne _skip_ecx_dec
+    dec zpEcx+1
+_skip_ecx_dec
+    dex
+    stx zpEcx+0
+    txa
+    rts
+
+getput                                  ; fetch src byte, put to dst buffer
+    jsr dzx7FetchByte                   ; fetch byte from src pointer
+    jsr dzx7StoreByte                   ; store byte in dst pointer
+    rts
+
+getput2
+    jsr dzx7FetchDstByte
+    jsr dzx7StoreByte                   ; store byte in dst pointer
+    rts
+
+dzx7SetSourceBank
+    ; set source bank
+    lsr
+    lsr
+    lsr
+    lsr
+    and #$0e
+    ora #$10
+    sta bitmapBank2
+    jsr setSwapAreaA000
+; adjust source ptr
+    lda zpSrcPtr+1
+    and #$1f
+    adc #$a0
+    sta zpSrcPtr+1
+    rts
+
+dzx7FetchDstByte
+    ldy #$00
+    lda (zpSrcPtr),y                    ; read byte from source pointer
+    inc zpSrcPtr+0                      ; increment source pointer
+    bne _end
+    pha
+    inc zpSrcPtr+1
+    lda zpSrcPtr+1
+    cmp #$c0
+    bne _noBankChange
+    lda #$a0
+    sta zpSrcPtr+1
+    inc bitmapBank2
+    inc bitmapBank2
+    lda bitmapBank2
+    jsr setSwapAreaA000
+_noBankChange
+    pla
+_end
+    rts
+
+dzx7FetchByte
+    ldy #$00
+    lda (zpSrcPtr),y                    ; read byte from source pointer
+    inc zpSrcPtr+0                      ; increment source pointer
+    bne _end
+    inc zpSrcPtr+1
+_end
+    rts
+
+dzx7StoreByte
+    sta (zpDstPtr),y                    ; store byte in dst pointer
+    inc zpDstPtr+0
+    bne _skip_inc_dst
+    pha
+    inc dstPage                         ; increment destination page (0-based)
+    inc zpDstPtr+1                      ; increment dst pointer (hb)
+    lda zpDstPtr+1
+    cmp #$e0
+    bne _noBankChange
+    lda #$c0
+    sta zpDstPtr+1                      ; reset pointer for next bank
+    inc bitmapBank
+    inc bitmapBank
+    lda bitmapBank
+    php
+    jsr setSwapAreaC000
+    plp
+_noBankChange
+    pla
+_skip_inc_dst
+    rts
+
+
+displayTitleScreenF256
+    lda #<titleScreenPacked             ; set source pointer (packed bitmap data)
+    sta zpSrcPtr+0
+    lda #>titleScreenPacked
+    sta zpSrcPtr+1
+
+    lda #$00                            ; set destination pointer (bitmap)
+    sta zpDstPtr+0
+    sta dstPage
+    lda #$c0                            ; bitmap pointer
+    sta zpDstPtr+1
+
+    lda #$10
+    sta bitmapBank
+    jsr setSwapAreaC000
+
+    jsr unpack_zx7
+
+    jsr resetSwapAreaA000
+    jsr resetSwapAreaC000
+
+    rts
+
+bitmapBank
+    .byte $00
+
+bitmapBank2
+    .byte $00
+
+dstPage
+    .byte $00
