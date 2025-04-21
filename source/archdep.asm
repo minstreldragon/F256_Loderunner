@@ -39,16 +39,20 @@ initF256                                ; initialize F256
 
         lda #$01
         sta VKY_BM0_CTRL                ; enable bitmap 0
+        sta VKY_BM1_CTRL                ; enable bitmap 1
         lda #$00
-        sta VKY_BM1_CTRL                ; disable bitmap 1
         sta VKY_BM2_CTRL                ; disable bitmap 2
 
-        lda #$00                        ; displayed bitmap: $010000
+
+        lda #$00                        ; set bitmap pointers
         sta VKY_BM0_ADDR_L
-        lda #$00
+        sta VKY_BM1_ADDR_L
         sta VKY_BM0_ADDR_M
+        sta VKY_BM1_ADDR_M
         lda #$01
-        sta VKY_BM0_ADDR_H
+        sta VKY_BM1_ADDR_H              ; displayed bitmap 1: $010000
+        lda #$02
+        sta VKY_BM0_ADDR_H              ; displayed bitmap 0: $020000
 
 .comment
         ; set tile set #0
@@ -93,7 +97,13 @@ initF256                                ; initialize F256
 .endcomment
 
         jsr setColorLut                 ; setup color LUT
-        jsr clearBm0
+;        jsr clearBm0
+        lda #$00                        ; fill value: black (transparent)
+        sta fillValue
+        jsr clearBitmap0F256
+        lda #$00                        ; fill value: black (transparent)
+        sta fillValue
+        jsr clearBitmap1F256
 
         jsr initSwapAreaC000            ; prepare $c000 for being uses as swap area
         jsr initSpritesF256
@@ -448,7 +458,7 @@ clut_start
         .byte $9f,$ff,$a9,$00    ; light green
         .byte $f8,$77,$7a,$00    ; light blue
         .byte $e0,$e0,$e0,$00    ; light grey
-        .byte $00,$00,$00,$00    ; black (text)
+        .byte $00,$00,$00,$00    ; black (solid)
 clut_end
 
 clut_enemy
@@ -498,6 +508,63 @@ _dest
         rts
 
 _physBank
+        .byte $00
+
+clearBitmap0F256
+        lda #$10
+        jmp clearBitmap
+
+clearBitmap1F256
+        lda #$20
+        jmp clearBitmap
+
+clearBitmap
+        ; loop over eight banks $010000 - $01ffff
+        ; Fill the whole area with #$00
+
+;;;        lda #$10                ; start at phys. memory $010000
+        sta _physBank                   ; parameter: physical memory area ($10 / $20)
+_clearBmTilesetL1
+        lda _physBank
+        jsr setSwapAreaA000
+        lda #$a0                ; start filling at logical $a000
+        sta _dest+2             ; high byte of destination
+        ldx #$20                ; for all banks but the last fill $20 pages
+        lda _physBank
+        and #$0f
+        cmp #$0e
+        bne _notLastBank
+        ldx #$1a                ; for the last bank, only need to fill $1a pages
+_notLastBank
+;;;        lda #$00                ; fill value: $00
+        lda fillValue           ; fill value: $00
+_clearBmTilesetL2
+;        txa                     ; TODO: TESTING ONLY
+;        and #$0f                ; TODO: TESTING ONLY fill tile with color
+        ldy #$00
+_dest
+        sta $a000,y
+        iny
+        bne _dest
+
+        inc _dest+2             ; inc high byte of destination
+        dex
+        bne _clearBmTilesetL2
+
+        inc _physBank
+        inc _physBank
+        lda _physBank
+        and #$0f
+;;;        cmp #$20
+        bne _clearBmTilesetL1
+
+        jsr resetSwapAreaA000   ; restore swap area at $a000
+        rts
+
+_physBank
+        .byte $00
+
+fillValue
         .byte $00
 
 drawDivider
@@ -1391,9 +1458,9 @@ _setMbTilemapL2
 
 
 moveKernelToRam
-        ; copy Kernel to RAM ($02e000-$02ffff)
+        ; copy Kernel to RAM ($03e000-$03ffff)
 
-        lda #$2e                        ; start at phys. memory $02e000
+        lda #$3e                        ; start at phys. memory $02e000
         jsr setSwapAreaA000             ; make physical memory $2e000 available at $a000
         lda #$e0                        ; source: $e000 (phys: $e000 ROM)
         ldy #$a0                        ; dest:   $a000 (phys: $e000 RAM)
@@ -1406,7 +1473,7 @@ moveKernelToRam
 _moveKernelToRamL1
         lda _mmuMemCtrlValues,x
         sta MMU_MEM_CTRL
-        lda #$2e >> 1                   ; convert address [24..31] to MMU bank
+        lda #$3e >> 1                   ; convert address [24..31] to MMU bank
         sta MMU_MEM_BANK_7              ; MMU Edit Register for bank 7 ($E000 - $FFFF)
         dex
         bpl _moveKernelToRamL1

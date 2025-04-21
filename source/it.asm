@@ -6359,7 +6359,7 @@ getBitmapPtrsBoth                       ; get both bitmap pointers for pos X,Y
         rts
 
 clearBitmap0                            ; clear bitmap 0 and turn off sprites
-        jsr clearBm0                    ; F256: clear bitmap 0
+        jsr clearBitmap0F256            ; F256: clear bitmap 0
 .comment
         lda #>Bitmap0                   ; start page
         ldx #$00
