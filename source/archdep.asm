@@ -105,6 +105,30 @@ initF256                                ; initialize F256
         sta fillValue
         jsr clearBitmap1F256
 
+        ldy #200
+_drawPixelLoop
+        tya
+        pha
+        dey
+
+        tya
+        lsr
+        lsr
+        lsr
+        tax
+
+        tya
+        and #$07
+
+;        ldy #$00
+;        ldx #$00
+;        lda #$00
+        jsr setPixelF256
+        pla
+        tay
+        dey
+        bne _drawPixelLoop
+
         jsr initSwapAreaC000            ; prepare $c000 for being uses as swap area
         jsr initSpritesF256
         jsr testSprites                 ; EXPERIMENTAL: test sprites
@@ -516,7 +540,8 @@ clearBitmap0F256
 
 clearBitmap1F256
         lda #$20
-        jmp clearBitmap
+        jsr clearBitmap
+        rts
 
 clearBitmap
         ; loop over eight banks $010000 - $01ffff
@@ -524,6 +549,8 @@ clearBitmap
 
 ;;;        lda #$10                ; start at phys. memory $010000
         sta _physBank                   ; parameter: physical memory area ($10 / $20)
+        lda #$00
+        sta _currentPage
 _clearBmTilesetL1
         lda _physBank
         jsr setSwapAreaA000
@@ -547,6 +574,17 @@ _dest
         iny
         bne _dest
 
+        inc _currentPage
+        ldy _currentPage
+        cpy #$dc
+        bne _clearBmJ1
+        ldy _physBank
+        cpy #$20
+        bcc _clearBmJ1
+        lda #COL_TRANSPARENT
+        sta fillValue
+
+_clearBmJ1
         inc _dest+2             ; inc high byte of destination
         dex
         bne _clearBmTilesetL2
@@ -562,6 +600,9 @@ _dest
         rts
 
 _physBank
+        .byte $00
+
+_currentPage
         .byte $00
 
 fillValue
@@ -617,17 +658,17 @@ getBitmapPtrF256
         lda zpCursorRow
         asl
         tay
-        lda TblBmpLinePtr+0,y           ; Bitmap start position (from Row)
+        lda TblBmpRowPtr+0,y            ; Bitmap start position (from Row)
         clc
         adc zpBmpPtr+0
         sta zpBmpPtr+0
-        lda TblBmpLinePtr+1,y
+        lda TblBmpRowPtr+1,y
         adc zpBmpPtr+1
         ora #$a0
         sta zpBmpPtr+1
 
         ldy zpCursorRow
-        lda TblBmpLinePage,y
+        lda TblBmpRowPage,y
         asl
         clc
         adc #$10
@@ -674,7 +715,7 @@ TblShapePtr
         .word range(NUM_SHAPES) * SHAPE_WIDTH * SHAPE_HEIGHT + shapesF256
         .fill NUM_SHAPES * 2
 
-TblBmpLinePtr
+TblBmpRowPtr
         .word ($00 * SHAPE_HEIGHT * 320) & $1fff
         .word ($01 * SHAPE_HEIGHT * 320) & $1fff
         .word ($02 * SHAPE_HEIGHT * 320) & $1fff
@@ -694,7 +735,7 @@ TblBmpLinePtr
         .word ($10 * SHAPE_HEIGHT * 320) & $1fff
         .word (($10 * SHAPE_HEIGHT + 5) * 320) & $1fff
 
-TblBmpLinePage
+TblBmpRowPage
         .byte ($00 * SHAPE_HEIGHT * 320) >> 13
         .byte ($01 * SHAPE_HEIGHT * 320) >> 13
         .byte ($02 * SHAPE_HEIGHT * 320) >> 13
@@ -713,6 +754,64 @@ TblBmpLinePage
         .byte ($0f * SHAPE_HEIGHT * 320) >> 13
         .byte ($10 * SHAPE_HEIGHT * 320) >> 13          ; divider line
         .byte (($10 * SHAPE_HEIGHT + 5) * 320) >> 13    ; score line
+
+
+setPixelF256
+; parameters:
+; Y = bitmap line
+; X = text column
+; A = offset within column
+
+        pha
+        clc
+        lda TblBmpLinePtrLo,y
+        adc TblBmpColPtrLo,x
+        sta zpDstPtr+0
+        lda TblBmpLinePtrHi,y
+        adc TblBmpColPtrHi,x
+        sta zpDstPtr+1
+        ; set memory bank
+        lsr
+        lsr
+        lsr
+        lsr
+;        and #$0e                       ; optional (last bit is not relevant)
+        ora #$20
+        jsr setSwapAreaA000
+        lda zpDstPtr+1
+        and #$1f
+        ora #$a0
+        sta zpDstPtr+1
+
+        pla
+        and #$1e                        ; prepare for setting double pixel
+        tay
+;        ldx zpIrisAnimDirection
+;        lda TblPixelColor,x
+;        lda #$02
+        lda zpIrisPixelColor            ; COL_TRANSPARENT or COL_SOLIDBLACK
+        sta (zpDstPtr),y                ; set left pixel
+        iny
+        sta (zpDstPtr),y                ; set right pixel
+        jsr resetSwapAreaA000
+
+        rts
+
+
+TblBmpLinePtrLo
+        .byte <range(0,64000,320)
+
+TblBmpLinePtrHi
+        .byte >range(0,64000,320)
+
+TblBmpColPtrLo
+        .byte <range(0,320,8)
+
+TblBmpColPtrHi
+        .byte >range(0,320,8)
+
+TblPixelColor
+        .byte $16, $00                  ; closing: solid blak, opening: transparent
 
 .comment
         .word ?                         ; align tile_map_tile to word
@@ -891,26 +990,6 @@ printJoyEvent
         jsr printByte
         rts
 
-.comment
-        lda #<spritesF256
-        sta VKY_SP0_AD_L
-        lda #>spritesF256
-        sta VKY_SP0_AD_M
-        lda #$00
-        sta VKY_SP0_AD_H
-        lda #<32
-        sta VKY_SP0_POS_X_L
-        lda #>32
-        sta VKY_SP0_POS_X_H
-        lda #<32
-        sta VKY_SP0_POS_Y_L
-        lda #>32
-        sta VKY_SP0_POS_Y_H
-        lda #%01000001          ; size: 16x16, layer 0, LUT 0, Enable
-        sta VKY_SP0_CTRL
-.endcomment
-
-        rts
 
 delayF256
         lda #$1
@@ -951,10 +1030,10 @@ _initSpriteL
         sta VKY_SP0_POS_Y_L,y
         sta VKY_SP0_POS_Y_H,y
 
-        lda #%01000000                  ; size: 16x16, layer 0, LUT 0, Disable
+        lda #%01001000                  ; size: 16x16, layer 1, LUT 0, Disable
         cpy #$00
         beq _initSpritePlayerLUT
-        lda #%01000010                  ; size: 16x16, layer 0, LUT 1, Disable
+        lda #%01001010                  ; size: 16x16, layer 1, LUT 1, Disable
 _initSpritePlayerLUT
         sta VKY_SP0_CTRL,y              ; TODO: use LUT 1 for enemy sprites
 
@@ -1033,10 +1112,10 @@ enableSpriteF256
         cpy #$00
         beq _enableSpritePlayerLUT
 _enableSpriteEnemyLut
-        lda #%01000011                  ; size: 16x16, layer 0, LUT 1, Enable
+        lda #%01001011                  ; size: 16x16, layer 1, LUT 1, Enable
         bne _enableSpriteJ1
 _enableSpritePlayerLut
-        lda #%01000001                  ; size: 16x16, layer 0, LUT 0, Enable
+        lda #%01001001                  ; size: 16x16, layer 0, LUT 0, Enable
 _enableSpriteJ1
         sta VKY_SP0_CTRL,y
         rts
@@ -1050,10 +1129,10 @@ disableSpriteF256
         cpy #$00
         beq _disableSpritePlayerLUT
 _disableSpriteEnemyLut
-        lda #%01000010                  ; size: 16x16, layer 0, LUT 1, Disable
+        lda #%01001010                  ; size: 16x16, layer 1, LUT 1, Disable
         bne _disableSpriteJ1
 _disableSpritePlayerLut
-        lda #%01000000                  ; size: 16x16, layer 0, LUT 0, Disable
+        lda #%01001000                  ; size: 16x16, layer 1, LUT 0, Disable
 _disableSpriteJ1
         sta VKY_SP0_CTRL,y
         rts
@@ -1066,10 +1145,10 @@ _enableSpritesL
         tay
         cpy #$00
         beq _enableSpritePlayerLUT
-        lda #%01000011                  ; size: 16x16, layer 0, LUT 1, Enable
+        lda #%01001011                  ; size: 16x16, layer 1, LUT 1, Enable
         bne _enableSpriteJ1
 _enableSpritePlayerLut
-        lda #%01000001                  ; size: 16x16, layer 0, LUT 0, Enable
+        lda #%01001001                  ; size: 16x16, layer 1, LUT 0, Enable
 _enableSpriteJ1
         sta VKY_SP0_CTRL,y
         tya
@@ -1088,13 +1167,13 @@ _disableSpritesL
         cpy #$00
         beq _disableSpritePlayerLUT
 _disableSpriteEnemyLut
-        lda #%01000010                  ; size: 16x16, layer 0, LUT 1, Disable
+        lda #%01001010                  ; size: 16x16, layer 1, LUT 1, Disable
         bne _disableSpriteJ1
 _disableSpritePlayerLut
-        lda #%01000000                  ; size: 16x16, layer 0, LUT 0, Disable
+        lda #%01001000                  ; size: 16x16, layer 1, LUT 0, Disable
 _disableSpriteJ1
-        lda VKY_SP0_CTRL,y
-        and #%11111110                  ; Disable Sprite
+;;;        lda VKY_SP0_CTRL,y
+;;;        and #%11111110                  ; Disable Sprite
         sta VKY_SP0_CTRL,y
         tya
         clc

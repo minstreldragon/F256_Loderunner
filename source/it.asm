@@ -17,9 +17,8 @@ resetGame
         sta playerNotFalling            ; 0: player is falling, >0: not falling
         sta soundFxPlayerDying          ; sound effect player dying, current pitch
         sta digDirection                ; $ff: dig forward, $00: dig behind runner
-;;;        sta irisAnimationOn             ; $ff: iris animation on, $00: turned off
+        sta irisAnimationOn             ; $ff: iris animation on, $00: turned off
         lda #$00
-        sta irisAnimationOn             ; TODO TEMPORARY EXPERIMENTAL prevent Iris animation
         sta tuneDataEnd                 ; offset: end of current tune
         sta tunePlayOffset              ; offset: playback position in current tune
         sta playerDiggingState          ; 0: player not digging, 1: digging right, -1 ($ff): digging left
@@ -2370,6 +2369,11 @@ _exit
 
 
 initBoardState                          ; initialize the board state (player, #enemies, #ladders etc)
+        lda irisAnimationOn             ; $ff: iris animation on, $00: turned off ---- EXPERIMENTAL
+        beq _initBoardStateJ1           ; EXPERIMENTAL
+        jsr animateCLoseIris            ; do the iris animation effect EXPERIMENTAL
+_initBoardStateJ1                       ; EXPERIMENTAL
+
         ; iterate over the board in order to find the player position,
         ; set up the enemies, initialize exit ladders, count gold etc.
         lda #$08                        ; TODO EXPERIMENTAL disable sprites
@@ -2550,11 +2554,12 @@ _skipIrisAnimation
 _initBoardQuickRedraw
         lda irisAnimationOn             ; $ff: iris animation on, $00: turned off
         beq _skipIrisAnimation
-.comment
-        jsr doIrisAnimation             ; do the iris animation effect
-.endcomment
+;;;        jsr doIrisAnimation             ; do the iris animation effect
+        jsr animateOpenIris             ; EXPERIMENTAL
+
 
 _initBoardQuickRedrawJ1
+.comment
         ldy #BOARD_HEIGHT-1
         sty zpCursorRow
 _rowL
@@ -2580,6 +2585,7 @@ _continue
         dec zpCursorRow
         ldy zpCursorRow
         bpl _rowL
+.endcomment
         clc
         rts
 
@@ -6360,6 +6366,8 @@ getBitmapPtrsBoth                       ; get both bitmap pointers for pos X,Y
 
 clearBitmap0                            ; clear bitmap 0 and turn off sprites
         jsr clearBitmap0F256            ; F256: clear bitmap 0
+        lda #$08                        ; TODO EXPERIMENTAL disable sprites
+        jsr disableSpritesF256          ; TODO EXPERIMENTAL disable sprites
 .comment
         lda #>Bitmap0                   ; start page
         ldx #$00
@@ -6735,24 +6743,40 @@ _skipInc
         rts
 
 
+.comment
 doIrisAnimation
         lda irisPhase                   ; iris animation phase: 0: animate open only, $ff: animate both
         beq _animateIrisOpen
+.endcomment
+
+animateCloseIris
+        lda irisPhase                   ; iris animation phase: 0: animate open only, $ff: animate both
+        bne _animateCloseIris           ; EXPERIMENTAL
+        lda #COL_SOLIDBLACK             ; EXPERIMENTAL
+        sta fillValue                   ; EXPERIMENTAL
+        jsr clearBitmap1F256            ; EXPERIMENTAL
+        rts
 _animateCloseIris
         ldx #IRIS_RADIUS_MAX            ; iris max wide open
         stx zpIrisRadius                ; iris: current radius
-        ldx #$00
-        stx zpIrisAnimDirection         ; set direction to closing (0)
+;;;        ldx #$00
+;;;        stx zpIrisAnimDirection         ; set direction to closing (0)
+        ldx #COL_SOLIDBLACK
+        stx zpIrisPixelColor
 
 _animateCloseL
         jsr updateIrisDisplay           ; update the iris display
         dec zpIrisRadius                ; iris: current radius
         bne _animateCloseL
+        rts
 
+animateOpenIris
 _animateIrisOpen
         lda #IRIS_RADIUS_MIN            ; (1)
         sta zpIrisRadius                ; iris: current radius
-        sta zpIrisAnimDirection         ; set direction to opening (1)
+;;;        sta zpIrisAnimDirection         ; set direction to opening (1)
+        lda #COL_TRANSPARENT
+        sta zpIrisPixelColor
         jsr printLives                  ; print number of lives
         jsr printLevel                  ; print current level
 
@@ -7005,6 +7029,7 @@ _drawOctant1
         ldx zpIrisColXOct13             ; X position (column) for octants 1/3
         cpx #IRIS_MAX_COL_X+1           ; > max screen column? (39)
         bcs _drawOctant2                ; yes -> skip octant 1
+.comment
         jsr getBitmapPtrsCircle         ; fetch bitmap pointers for screen col X, raster line Y
         ldx zpIrisOffXOct13             ; X position (offset) for octants 1/3
         ldy #$00
@@ -7020,12 +7045,16 @@ _drawOct1Opening
         and tabIrisCloseMask,x          ; table: bitmasks for clearing pixels
         ora (zpBmpPtr0),y               ; combine with current byte from dest bitmap
         sta (zpBmpPtr0),y               ; update dest bitmap
+.endcomment
+        lda zpIrisOffXOct13             ; X position (offset) for octants 1/3
+        jsr setPixelF256
 
 _drawOctant2
         ldx zpIrisColXOct24             ; X position (column) for octants 2/4
         cpx #IRIS_MAX_COL_X+1           ; X position (column) negative?
         bcs _drawOctant3                ; yes -> skip octant 2
         ldy zpIrisPosYOct12             ; Y position for octants 1/2
+.comment
         jsr getBitmapPtrsCircle         ; fetch bitmap pointers for screen col X, raster line Y
         ldx zpIrisOffXOct24             ; X position (offset) for octants 2/4
         ldy #$00
@@ -7041,6 +7070,9 @@ _drawOct2Opening
         and tabIrisCloseMask,x          ; table: bitmasks for clearing pixels
         ora (zpBmpPtr0),y               ; combine with current byte from dest bitmap
         sta (zpBmpPtr0),y               ; update dest bitmap
+.endcomment
+        lda zpIrisOffXOct24             ; X position (offset) for octants 2/4
+        jsr setPixelF256
 
 _drawOctant3
         ldy zpIrisPosYOct34             ; Y position for octants 3/4
@@ -7049,8 +7081,9 @@ _drawOctant3
         ldx zpIrisColXOct13             ; X position (column) for octants 1/3
         cpx #IRIS_MAX_COL_X+1           ; > max screen column? (39)
         bcs _drawOctant4                ; yes -> skip octant 3
+.comment
         jsr getBitmapPtrsCircle         ; fetch bitmap pointers for screen col X, raster line Y
-        ldx zpIrisOffXOct13             ; inc. X position (offset) for octants 1/3
+        ldx zpIrisOffXOct13             ; X position (offset) for octants 1/3
         ldy #$00
         lda zpIrisAnimDirection         ; 0: closing, 1: opening
         bne _drawOct3Opening            ; opening ->
@@ -7064,12 +7097,16 @@ _drawOct3Opening
         and tabIrisCloseMask,x          ; table: bitmasks for clearing pixels
         ora (zpBmpPtr0),y               ; combine with current byte from dest bitmap
         sta (zpBmpPtr0),y               ; update dest bitmap
+.endcomment
+        lda zpIrisOffXOct13             ; X position (offset) for octants 1/3
+        jsr setPixelF256
 
 _drawOctant4
         ldx zpIrisColXOct24             ; X position (column) for octants 2/4
         cpx #IRIS_MAX_COL_X+1           ; X position (column) negative?
         bcs _drawOctant5                ; yes -> skip octant 4
         ldy zpIrisPosYOct34             ; Y position for octants 3/4
+.comment
         jsr getBitmapPtrsCircle         ; fetch bitmap pointers for screen col X, raster line Y
         ldx zpIrisOffXOct24             ; X position (offset) for octants 2/4
         ldy #$00
@@ -7085,6 +7122,9 @@ _drawOct4Opening
         and tabIrisCloseMask,x          ; table: bitmasks for clearing pixels
         ora (zpBmpPtr0),y               ; combine with current byte from dest bitmap
         sta (zpBmpPtr0),y               ; update dest bitmap
+.endcomment
+        lda zpIrisOffXOct24             ; X position (offset) for octants 2/4
+        jsr setPixelF256
 
 _drawOctant5
         ldy zpIrisPosYOct56             ; Y position for octants 5/6
@@ -7093,8 +7133,9 @@ _drawOctant5
         ldx zpIrisColXOct57             ; X position (column) for octants 5/7
         cpx #IRIS_MAX_COL_X+1           ; > max screen column? (39)
         bcs _drawOctant6                ; yes -> skip octant 5
+.comment
         jsr getBitmapPtrsCircle         ; fetch bitmap pointers for screen col X, raster line Y
-        ldx zpIrisOffXOct57             ; inc. X position (offset) for octants 5/7
+        ldx zpIrisOffXOct57             ; X position (offset) for octants 5/7
         ldy #$00
         lda zpIrisAnimDirection         ; 0: closing, 1: opening
         bne _drawOct5Opening            ; opening ->
@@ -7108,12 +7149,16 @@ _drawOct5Opening
         and tabIrisCloseMask,x          ; table: bitmasks for clearing pixels
         ora (zpBmpPtr0),y               ; combine with current byte from dest bitmap
         sta (zpBmpPtr0),y               ; update dest bitmap
+.endcomment
+        lda zpIrisOffXOct57             ; X position (offset) for octants 5/7
+        jsr setPixelF256
 
 _drawOctant6
         ldx zpIrisColXOct68             ; X position (column) for octants 6/8
         cpx #IRIS_MAX_COL_X+1           ; X position (column) negative?
         bcs _drawOctant7                ; yes -> skip octant 6
         ldy zpIrisPosYOct56             ; Y position for octants 5/6
+.comment
         jsr getBitmapPtrsCircle         ; fetch bitmap pointers for screen col X, raster line Y
         ldx zpIrisOffXOct68             ; X position (offset) for octants 6/8
         ldy #$00
@@ -7129,6 +7174,9 @@ _drawOct6Opening
         and tabIrisCloseMask,x          ; table: bitmasks for clearing pixels
         ora (zpBmpPtr0),y               ; combine with current byte from dest bitmap
         sta (zpBmpPtr0),y               ; update dest bitmap
+.endcomment
+        lda zpIrisOffXOct68             ; X position (offset) for octants 6/8
+        jsr setPixelF256
 
 _drawOctant7
         ldy zpIrisPosYOct78             ; Y position for octants 7/8
@@ -7137,6 +7185,7 @@ _drawOctant7
         ldx zpIrisColXOct57             ; X position (column) for octants 5/7
         cpx #IRIS_MAX_COL_X+1           ; > max screen column? (39)
         bcs _drawOctant8                ; yes -> skip octant 7
+.comment
         jsr getBitmapPtrsCircle         ; fetch bitmap pointers for screen col X, raster line Y
         ldx zpIrisOffXOct57             ; inc. X position (offset) for octants 5/7
         ldy #$00
@@ -7152,12 +7201,16 @@ _drawOct7Opening
         and tabIrisCloseMask,x          ; table: bitmasks for clearing pixels
         ora (zpBmpPtr0),y               ; combine with current byte from dest bitmap
         sta (zpBmpPtr0),y               ; update dest bitmap
+.endcomment
+        lda zpIrisOffXOct57             ; inc. X position (offset) for octants 5/7
+        jsr setPixelF256
 
 _drawOctant8
         ldx zpIrisColXOct68             ; X position (column) for octants 6/8
         cpx #IRIS_MAX_COL_X+1           ; X position (column) negative?
         bcs _exitDrawOctants            ; yes -> skip octant 8
         ldy zpIrisPosYOct78             ; Y position for octants 7/8
+.comment
         jsr getBitmapPtrsCircle         ; fetch bitmap pointers for screen col X, raster line Y
         ldx zpIrisOffXOct68             ; X position (offset) for octants 6/8
         ldy #$00
@@ -7173,10 +7226,14 @@ _drawOct8Opening
         and tabIrisCloseMask,x          ; table: bitmasks for clearing pixels
         ora (zpBmpPtr0),y               ; combine with current byte from dest bitmap
         sta (zpBmpPtr0),y               ; update dest bitmap
+.endcomment
+        lda zpIrisOffXOct68             ; X position (offset) for octants 6/8
+        jsr setPixelF256
 
 _exitDrawOctants
         rts
 
+.comment
 tabIrisOpenMask
         .byte $0f,$0f,$0f,$0f           ; table: bitmasks for copying pixels
 
@@ -7192,6 +7249,7 @@ tabIrisCloseMask
 ;         .byte $03,$03,$0c,$0c,$30,$30,$c0,$c0
 ; tabIrisCloseMask
 ;         .byte $fc,$fc,$f3,$f3,$cf,$cf,$3f,$3f
+.endcomment
 
 
 

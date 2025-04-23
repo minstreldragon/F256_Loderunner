@@ -212,6 +212,7 @@ zpShapeDblPixelShift                    ; double-pixel shift applied to shape fo
         .byte ?                         ; $41
 
 zpIrisAnimDirection                     ; 0: closing, 1: opening
+zpIrisPixelColor                        ; COL_TRANSPARENT or COL_SOLIDBLACK
         .byte ?                         ; $42
 
 zpIrisPosYOct34                         ; Y position for octants 3/4
