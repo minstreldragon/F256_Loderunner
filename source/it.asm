@@ -7029,23 +7029,6 @@ _drawOctant1
         ldx zpIrisColXOct13             ; X position (column) for octants 1/3
         cpx #IRIS_MAX_COL_X+1           ; > max screen column? (39)
         bcs _drawOctant2                ; yes -> skip octant 1
-.comment
-        jsr getBitmapPtrsCircle         ; fetch bitmap pointers for screen col X, raster line Y
-        ldx zpIrisOffXOct13             ; X position (offset) for octants 1/3
-        ldy #$00
-        lda zpIrisAnimDirection         ; 0: closing, 1: opening
-        bne _drawOct1Opening            ; opening ->
-_drawOct1Closing
-        lda (zpBmpPtr0),y               ; get current byte from dest bitmap
-        and tabIrisOpenMask,x           ; table: bitmasks for copying pixels
-        sta (zpBmpPtr0),y               ; update dest bitmap
-        jmp _drawOctant2
-_drawOct1Opening
-        lda (zpBmpPtr1),y               ; get current byte from buffer bitmap
-        and tabIrisCloseMask,x          ; table: bitmasks for clearing pixels
-        ora (zpBmpPtr0),y               ; combine with current byte from dest bitmap
-        sta (zpBmpPtr0),y               ; update dest bitmap
-.endcomment
         lda zpIrisOffXOct13             ; X position (offset) for octants 1/3
         jsr setPixelF256
 
@@ -7054,23 +7037,6 @@ _drawOctant2
         cpx #IRIS_MAX_COL_X+1           ; X position (column) negative?
         bcs _drawOctant3                ; yes -> skip octant 2
         ldy zpIrisPosYOct12             ; Y position for octants 1/2
-.comment
-        jsr getBitmapPtrsCircle         ; fetch bitmap pointers for screen col X, raster line Y
-        ldx zpIrisOffXOct24             ; X position (offset) for octants 2/4
-        ldy #$00
-        lda zpIrisAnimDirection         ; 0: closing, 1: opening
-        bne _drawOct2Opening            ; opening ->
-_drawOct2Closing
-        lda (zpBmpPtr0),y               ; get current byte from dest bitmap
-        and tabIrisOpenMask,x           ; table: bitmasks for copying pixels
-        sta (zpBmpPtr0),y               ; update dest bitmap
-        jmp _drawOctant3
-_drawOct2Opening
-        lda (zpBmpPtr1),y               ; get current byte from buffer bitmap
-        and tabIrisCloseMask,x          ; table: bitmasks for clearing pixels
-        ora (zpBmpPtr0),y               ; combine with current byte from dest bitmap
-        sta (zpBmpPtr0),y               ; update dest bitmap
-.endcomment
         lda zpIrisOffXOct24             ; X position (offset) for octants 2/4
         jsr setPixelF256
 
@@ -7081,23 +7047,6 @@ _drawOctant3
         ldx zpIrisColXOct13             ; X position (column) for octants 1/3
         cpx #IRIS_MAX_COL_X+1           ; > max screen column? (39)
         bcs _drawOctant4                ; yes -> skip octant 3
-.comment
-        jsr getBitmapPtrsCircle         ; fetch bitmap pointers for screen col X, raster line Y
-        ldx zpIrisOffXOct13             ; X position (offset) for octants 1/3
-        ldy #$00
-        lda zpIrisAnimDirection         ; 0: closing, 1: opening
-        bne _drawOct3Opening            ; opening ->
-_drawOct3Closing
-        lda (zpBmpPtr0),y               ; get current byte from dest bitmap
-        and tabIrisOpenMask,x           ; table: bitmasks for copying pixels
-        sta (zpBmpPtr0),y               ; update dest bitmap
-        jmp _drawOctant4
-_drawOct3Opening
-        lda (zpBmpPtr1),y               ; get current byte from buffer bitmap
-        and tabIrisCloseMask,x          ; table: bitmasks for clearing pixels
-        ora (zpBmpPtr0),y               ; combine with current byte from dest bitmap
-        sta (zpBmpPtr0),y               ; update dest bitmap
-.endcomment
         lda zpIrisOffXOct13             ; X position (offset) for octants 1/3
         jsr setPixelF256
 
@@ -7106,23 +7055,6 @@ _drawOctant4
         cpx #IRIS_MAX_COL_X+1           ; X position (column) negative?
         bcs _drawOctant5                ; yes -> skip octant 4
         ldy zpIrisPosYOct34             ; Y position for octants 3/4
-.comment
-        jsr getBitmapPtrsCircle         ; fetch bitmap pointers for screen col X, raster line Y
-        ldx zpIrisOffXOct24             ; X position (offset) for octants 2/4
-        ldy #$00
-        lda zpIrisAnimDirection         ; 0: closing, 1: opening
-        bne _drawOct4Opening            ; opening ->
-_drawOct4Closing
-        lda (zpBmpPtr0),y               ; get current byte from dest bitmap
-        and tabIrisOpenMask,x           ; table: bitmasks for copying pixels
-        sta (zpBmpPtr0),y               ; update dest bitmap
-        jmp _drawOctant5
-_drawOct4Opening
-        lda (zpBmpPtr1),y               ; get current byte from buffer bitmap
-        and tabIrisCloseMask,x          ; table: bitmasks for clearing pixels
-        ora (zpBmpPtr0),y               ; combine with current byte from dest bitmap
-        sta (zpBmpPtr0),y               ; update dest bitmap
-.endcomment
         lda zpIrisOffXOct24             ; X position (offset) for octants 2/4
         jsr setPixelF256
 
@@ -7133,23 +7065,6 @@ _drawOctant5
         ldx zpIrisColXOct57             ; X position (column) for octants 5/7
         cpx #IRIS_MAX_COL_X+1           ; > max screen column? (39)
         bcs _drawOctant6                ; yes -> skip octant 5
-.comment
-        jsr getBitmapPtrsCircle         ; fetch bitmap pointers for screen col X, raster line Y
-        ldx zpIrisOffXOct57             ; X position (offset) for octants 5/7
-        ldy #$00
-        lda zpIrisAnimDirection         ; 0: closing, 1: opening
-        bne _drawOct5Opening            ; opening ->
-_drawOct5Closing
-        lda (zpBmpPtr0),y               ; get current byte from dest bitmap
-        and tabIrisOpenMask,x           ; table: bitmasks for copying pixels
-        sta (zpBmpPtr0),y               ; update dest bitmap
-        jmp _drawOctant6
-_drawOct5Opening
-        lda (zpBmpPtr1),y               ; get current byte from buffer bitmap
-        and tabIrisCloseMask,x          ; table: bitmasks for clearing pixels
-        ora (zpBmpPtr0),y               ; combine with current byte from dest bitmap
-        sta (zpBmpPtr0),y               ; update dest bitmap
-.endcomment
         lda zpIrisOffXOct57             ; X position (offset) for octants 5/7
         jsr setPixelF256
 
@@ -7158,23 +7073,6 @@ _drawOctant6
         cpx #IRIS_MAX_COL_X+1           ; X position (column) negative?
         bcs _drawOctant7                ; yes -> skip octant 6
         ldy zpIrisPosYOct56             ; Y position for octants 5/6
-.comment
-        jsr getBitmapPtrsCircle         ; fetch bitmap pointers for screen col X, raster line Y
-        ldx zpIrisOffXOct68             ; X position (offset) for octants 6/8
-        ldy #$00
-        lda zpIrisAnimDirection         ; 0: closing, 1: opening
-        bne _drawOct6Opening            ; opening ->
-_drawOct6Closing
-        lda (zpBmpPtr0),y               ; get current byte from dest bitmap
-        and tabIrisOpenMask,x           ; table: bitmasks for copying pixels
-        sta (zpBmpPtr0),y               ; update dest bitmap
-        jmp _drawOctant7
-_drawOct6Opening
-        lda (zpBmpPtr1),y               ; get current byte from buffer bitmap
-        and tabIrisCloseMask,x          ; table: bitmasks for clearing pixels
-        ora (zpBmpPtr0),y               ; combine with current byte from dest bitmap
-        sta (zpBmpPtr0),y               ; update dest bitmap
-.endcomment
         lda zpIrisOffXOct68             ; X position (offset) for octants 6/8
         jsr setPixelF256
 
@@ -7185,23 +7083,6 @@ _drawOctant7
         ldx zpIrisColXOct57             ; X position (column) for octants 5/7
         cpx #IRIS_MAX_COL_X+1           ; > max screen column? (39)
         bcs _drawOctant8                ; yes -> skip octant 7
-.comment
-        jsr getBitmapPtrsCircle         ; fetch bitmap pointers for screen col X, raster line Y
-        ldx zpIrisOffXOct57             ; inc. X position (offset) for octants 5/7
-        ldy #$00
-        lda zpIrisAnimDirection         ; 0: closing, 1: opening
-        bne _drawOct7Opening            ; opening ->
-_drawOct7Closing
-        lda (zpBmpPtr0),y               ; get current byte from dest bitmap
-        and tabIrisOpenMask,x           ; table: bitmasks for copying pixels
-        sta (zpBmpPtr0),y               ; update dest bitmap
-        jmp _drawOctant8
-_drawOct7Opening
-        lda (zpBmpPtr1),y               ; get current byte from buffer bitmap
-        and tabIrisCloseMask,x          ; table: bitmasks for clearing pixels
-        ora (zpBmpPtr0),y               ; combine with current byte from dest bitmap
-        sta (zpBmpPtr0),y               ; update dest bitmap
-.endcomment
         lda zpIrisOffXOct57             ; inc. X position (offset) for octants 5/7
         jsr setPixelF256
 
@@ -7210,47 +7091,11 @@ _drawOctant8
         cpx #IRIS_MAX_COL_X+1           ; X position (column) negative?
         bcs _exitDrawOctants            ; yes -> skip octant 8
         ldy zpIrisPosYOct78             ; Y position for octants 7/8
-.comment
-        jsr getBitmapPtrsCircle         ; fetch bitmap pointers for screen col X, raster line Y
-        ldx zpIrisOffXOct68             ; X position (offset) for octants 6/8
-        ldy #$00
-        lda zpIrisAnimDirection         ; 0: closing, 1: opening
-        bne _drawOct8Opening            ; opening ->
-_drawOct8Closing
-        lda (zpBmpPtr0),y               ; get current byte from dest bitmap
-        and tabIrisOpenMask,x           ; table: bitmasks for copying pixels
-        sta (zpBmpPtr0),y               ; update dest bitmap
-        rts
-_drawOct8Opening
-        lda (zpBmpPtr1),y               ; get current byte from buffer bitmap
-        and tabIrisCloseMask,x          ; table: bitmasks for clearing pixels
-        ora (zpBmpPtr0),y               ; combine with current byte from dest bitmap
-        sta (zpBmpPtr0),y               ; update dest bitmap
-.endcomment
         lda zpIrisOffXOct68             ; X position (offset) for octants 6/8
         jsr setPixelF256
 
 _exitDrawOctants
         rts
-
-.comment
-tabIrisOpenMask
-        .byte $0f,$0f,$0f,$0f           ; table: bitmasks for copying pixels
-
-tabIrisCloseMask
-        .byte $f0,$f0,$f0,$f0           ; table: bitmasks for clearing pixels
-        .byte $0f,$0f,$0f,$0f
-
-; Note:
-; The resolution of the circle drawing could be improved by
-; clearing/copying two pixels at a time rather than four pixels:
-;
-; tabIrisOpenMask
-;         .byte $03,$03,$0c,$0c,$30,$30,$c0,$c0
-; tabIrisCloseMask
-;         .byte $fc,$fc,$f3,$f3,$cf,$cf,$3f,$3f
-.endcomment
-
 
 
 jingleGoldCompleteMax
