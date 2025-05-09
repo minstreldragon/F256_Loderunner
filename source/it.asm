@@ -764,19 +764,12 @@ _finishIrq
 .endcomment
 
 initHwResources
-.comment
-        lda R6510                       ; processor port ($01)
-        and #$fe                        ; disable BASIC, $a000-$bfff RAM
-        sta R6510
-.endcomment
-
         lda #$00
         sta zpBmpLinePtrLb
-        lda #$00
         sta zpBmpLinePtrHb
         ldy #$00                        ; table index
 
-        ldx #200
+        ldx #200                        ; iterate over 200 lines
 _initTblsBmpLinePtrL
         lda zpBmpLinePtrHb              ; write current line pointer to table (hb)
         sta TblBmpLinePtrHb,y
@@ -793,30 +786,6 @@ _skipInc
         dex                             ; dec. loop counter
         bne _initTblsBmpLinePtrL        ; iterate over 200 lines (inner loop)
 
-.comment
-        lda #25
-        sta rowIterator                 ; row iterator for table init routine
-_initTblsBmpLinePtrL1
-        ldx #$08                        ; iterator: loop over 8 lines
-_initTblsBmpLinePtrL2
-        lda zpBmpLinePtrHb              ; write current line pointer to table (hb)
-        sta TblBmpLinePtrHb,y
-        lda zpBmpLinePtrLb              ; write current line pointer to table (lb)
-        sta TblBmpLinePtrLb,y
-        inc zpBmpLinePtrLb              ; next line: increment line pointer
-        iny                             ; inc. table index
-        dex                             ; dec. loop counter
-        bne _initTblsBmpLinePtrL2       ; iterate over 8 lines (inner loop)
-
-        clc
-        adc #<(320-7)                   ; next line: increment line pointer (lb)
-        sta zpBmpLinePtrLb
-        lda zpBmpLinePtrHb
-        adc #>(320-7)                   ; next line: increment line pointer (hb)
-        sta zpBmpLinePtrHb
-        dec rowIterator                 ; row iterator for table init routine
-        bne _initTblsBmpLinePtrL1       ; iterate over 25 rows
-.endcomment
 
         ; init hardware resources
 
@@ -5882,88 +5851,7 @@ replaceTileBitmap1
 printTileJ1
         lda zpShapeId                   ; F256: force printing tile on bitmap 0
         jsr replaceTileBm0              ; F256: force printing tile on bitmap 0
-
-.comment
-        sta zpBitmapPage                ; destination bitmap page
-        ldy zpCursorRow
-        ldx zpCursorCol
-        jsr convertBoardPosToPixelPos   ; return: (X,Y) pixel coordinates
-        sty zpPixelPosY                 ; pixel position Y
-        jsr convertShapeOrPrintSprite
-        jsr getShapeBitmapOffsetX
-        stx zpShapeDblPixelShift        ; double-pixel shift applied to shape for printing
-        lda andMaskShiftTblLeft,x
-        sta zpBmpAndMask+0              ; and-mask for drawing to bitmap (left)
-        lda andMaskShiftTblRight,x
-        sta zpBmpAndMask+1              ; and-mask for drawing to bitmap (right)
-        jsr copyShapeToHopper           ; copy/shift the shape to zpShiftedShapeHopper
-        lda #SHAPE_HEIGHT
-        sta zpShapeRowIter              ; iterator over rows in shape
-        ldx #$00                        ; index into shifted shape hopper
-        lda zpShapeDblPixelShift        ; double-pixel shift applied to shape for printing
-        cmp #$05                        ; pixel shift >= 5? (Note: pixel shift always in range [0..3]
-        bcs _copyShapeToBitmapL2        ; yes -> (Optimization: this branch is never taken)
-_copyShapeToBitmapL1
-        ldy zpPixelPosY
-        jsr getBitmapPtr                ; get bitmap pointer for pos X,Y on zpBitmapPage
-        ldy #$00
-        lda (zpBmpPtr),y                ; byte in current bitmap
-        and zpBmpAndMask+0              ; and-mask for drawing to bitmap (left)
-        ora zpShiftedShapeHopper,x      ; insert left half of shape to bitmap
-        sta (zpBmpPtr),y                ; update bitmap
-        inx                             ; proceed to right byte
-        ldy #$08                        ; increase bitmap pointer to next byte on same line
-        lda (zpBmpPtr),y                ; byte in current bitmap
-        and zpBmpAndMask+1              ; and-mask for drawing to bitmap (right)
-        ora zpShiftedShapeHopper,x      ; insert right half of shape to bitmap
-        sta (zpBmpPtr),y                ; update bitmap
-        inx                             ; proceed to byte three (unused)
-        inx                             ; proceed to byte one on next line
-        inc zpPixelPosY                 ; inc destination line
-        dec zpShapeRowIter              ; dec shape row iterator
-        bne _copyShapeToBitmapL1
-.endcomment
         rts
-
-;============== begin unreachable code ==============
-;= use case: shifted shape spans three bitmap bytes =
-
-_copyShapeToBitmapL2
-        ldy zpPixelPosY
-        jsr getBitmapPtr                ; get bitmap pointer for pos X,Y on zpBitmapPage
-        ldy #$00
-        lda (zpBmpPtr),y                ; byte in current bitmap
-        and zpBmpAndMask+0              ; and-mask for drawing to bitmap (left)
-        ora zpShiftedShapeHopper,x      ; insert left part of shape to bitmap
-        sta (zpBmpPtr),y
-        inx                             ; proceed to middle byte
-        ldy #$08
-        lda zpShiftedShapeHopper,x      ; insert middle part of shape to bitmap
-        sta (zpBmpPtr),y                ; directly copy, all bits are new
-        inx                             ; proceed to right byte
-        ldy #$10
-        lda (zpBmpPtr),y                ; byte in current bitmap
-        and zpBmpAndMask+1              ; and-mask for drawing to bitmap (right)
-        ora zpShiftedShapeHopper,x      ; insert right part of shape to bitmap
-        sta (zpBmpPtr),y
-        inx
-        inc zpPixelPosY
-        dec zpShapeRowIter              ; dec shape row iterator
-        bne _copyShapeToBitmapL2
-        rts
-;=============== end unreachable code ==============
-
-andMaskShiftTblLeft
-        .byte %00000000
-        .byte %11000000
-        .byte %11110000
-        .byte %11111100
-
-andMaskShiftTblRight
-        .byte %00111111
-        .byte %00001111
-        .byte %00000011
-        .byte %00000000
 
 
 eraseSpriteFromColBmp
@@ -6075,148 +5963,12 @@ _noCollision
         tax
         rts
 
-
 cookieCutTileFromBuffer
         rts                             ; TODO EXPERIMENTAL
-
-.comment
-        sty zpPixelPosY                 ; pixel position Y
-        sta zpShapeId                   ; current shape ID
-        jsr getShapeBitmapOffsetX       ; calculate horizontal pixel position
-        sta zpPixelOffsetXlb            ; pixel offset x in bitmap, low byte (unused?)
-        stx zpShapeDblPixelShift        ; double-pixel shift applied to shape for printing
-        jsr copyShapeToHopper           ; copy/shift the shape to zpShiftedShapeHopper
-        ldx #SHAPE_HEIGHT               ; iterate over shape height
-        stx zpShapeRowIter              ; iterator over rows in shape
-        ldx #$00                        ; index into shifted shape hopper
-        lda zpShapeDblPixelShift        ; double-pixel shift applied to shape for printing
-        cmp #$05                        ; pixel shift >= 5? (Note: pixel shift always in range [0..3]
-        bcs _copyShapeToBitmapL2
-
-        ; handle pixel offsets 0-4
-_copyShapeToBitmapL1
-        ldy zpPixelPosY
-        jsr getBitmapPtrsBoth           ; get both bitmap pointers for pos X,Y
-        ldy #$00
-        lda zpShiftedShapeHopper,x
-        eor #$ff                        ; invert shape on hopper
-        and (zpBmpPtr0),y               ; cut out shape from displayed bitmap
-        ora (zpBmpPtr1),y               ; add in shape from preparation bitmap
-        sta (zpBmpPtr0),y               ; store back in displayed bitmap
-        inx                             ; handle second byte in sprite row
-        ldy #$08
-        lda zpShiftedShapeHopper,x
-        eor #$ff
-        and (zpBmpPtr0),y
-        ora (zpBmpPtr1),y
-        sta (zpBmpPtr0),y
-        inx                             ; third byte in sprite row
-        inx                             ; (skip)
-        inc zpPixelPosY                 ; inc destination line
-        dec zpShapeRowIter              ; dec shape row iterator
-        bne _copyShapeToBitmapL1
-        rts
-
-;============== begin unreachable code ==============
-;= use case: shifted shape spans three bitmap bytes =
-
-_copyShapeToBitmapL2
-        ldy zpPixelPosY
-        jsr getBitmapPtrsBoth           ; get both bitmap pointers for pos X,Y
-        ldy #$00
-        lda zpShiftedShapeHopper,x
-        eor #$ff
-        and (zpBmpPtr0),y
-        ora (zpBmpPtr1),y
-        sta (zpBmpPtr0),y
-        inx
-        ldy #$08                        ; increase bitmap pointer to next byte on same line
-        lda zpShiftedShapeHopper,x
-        eor #$ff
-        and (zpBmpPtr0),y
-        ora (zpBmpPtr1),y
-        sta (zpBmpPtr0),y
-        inx
-        ldy #$10                        ; increase bitmap pointer to next byte on same line
-        lda zpShiftedShapeHopper,x
-        eor #$ff
-        and (zpBmpPtr0),y
-        ora (zpBmpPtr1),y
-        sta (zpBmpPtr0),y
-        inx
-        inc zpPixelPosY                 ; inc destination line
-        dec zpShapeRowIter              ; dec shape row iterator
-        bne _copyShapeToBitmapL2
-        rts
-;=============== end unreachable code ==============
-.endcomment
 
 pasteTileBitmap0                        ; paste tile over bitmap 0 (no erase)
         jsr replaceTileBm0              ; TODO EXPERIMENTAL F256: force printing tile on bitmap 0
         rts
-.comment
-; print shape at pixel position (?)
-; load shape into sprite data
-        sty zpPixelPosY                 ; pixel position Y
-        sta zpShapeId                   ; current shape ID
-        jsr convertShapeOrPrintSprite
-        jsr getShapeBitmapOffsetX
-        sta zpPixelOffsetXlb            ; pixel offset x in bitmap, low byte (unused?)
-        stx zpShapeDblPixelShift        ; double-pixel shift applied to shape for printing
-        jsr copyShapeToHopper           ; copy/shift the shape to zpShiftedShapeHopper
-        lda #SHAPE_HEIGHT
-        sta zpShapeRowIter              ; iterator over rows in shape
-        ldx #$00                        ; index into shifted shape hopper
-        stx zpPlayerEnemyCollision      ; 0: no collision of player and enemy; 1: collision detected
-        lda zpShapeDblPixelShift        ; double-pixel shift applied to shape for printing
-        cmp #$05                        ; pixel shift >= 5? (Note: pixel shift always in range [0..3]
-        bcs _copyShapeToBitmapL2
-_copyShapeToBitmapL1
-        ldy zpPixelPosY
-        jsr getBitmapPtrsBoth           ; get both bitmap pointers for pos X,Y
-        ldy #$00
-        lda zpShiftedShapeHopper,x      ; paste left half of shape onto bitmap
-        ora (zpBmpPtr0),y
-        sta (zpBmpPtr0),y
-        inx                             ; proceed to right byte
-        ldy #$08                        ; increase bitmap pointer to next byte on same line
-        lda zpShiftedShapeHopper,x      ; paste right half of shape onto bitmap
-        ora (zpBmpPtr0),y
-        sta (zpBmpPtr0),y
-        inx                             ; proceed to byte three (unused)
-        inx                             ; proceed to byte one on next line
-        inc zpPixelPosY                 ; inc destination line
-        dec zpShapeRowIter              ; dec shape row iterator
-        bne _copyShapeToBitmapL1
-        rts
-
-;============== begin unreachable code ==============
-;= use case: shifted shape spans three bitmap bytes =
-
-_copyShapeToBitmapL2
-        ldy zpPixelPosY
-        jsr getBitmapPtrsBoth           ; get both bitmap pointers for pos X,Y
-        ldy #$00
-        lda zpShiftedShapeHopper,x
-        ora (zpBmpPtr0),y
-        sta (zpBmpPtr0),y
-        inx
-        ldy #$08                        ; increase bitmap pointer to next byte on same line
-        lda zpShiftedShapeHopper,x
-        ora (zpBmpPtr0),y
-        sta (zpBmpPtr0),y
-        inx
-        ldy #$10                        ; increase bitmap pointer to next byte on same line
-        lda zpShiftedShapeHopper,x
-        ora (zpBmpPtr0),y
-        sta (zpBmpPtr0),y
-        inx
-        inc zpPixelPosY                 ; inc destination line
-        dec zpShapeRowIter              ; dec shape row iterator
-        bne _copyShapeToBitmapL2
-        rts
-;=============== end unreachable code ==============
-.endcomment
 
 copyShapeToHopper                       ; copy/shift the shape to zpShiftedShapeHopper
         lda #SHAPE_HEIGHT
@@ -6271,117 +6023,6 @@ tabShapeShiftTablePage
         .byte >(shapeShiftTables+$0400) ; shift 4 pixels
         .byte >(shapeShiftTables+$0600) ; shift 6 pixels
 
-.comment
-                                        ; convert charset to shape id
-convertShapeOrPrintSprite
-        lda skipShapeConversion         ; 0: don't skip shape conversion, >0: skip shape conversion
-        bne _exit                       ; skip shape conversion? ->
-        lda zpShapeId                   ; current shape ID (before conversion)
-        cmp #ANIM_RESPAWN_0
-        bcs _exit
-        tay                             ; (zpShapeId)
-        lda logicalToShapeConvTbl,y     ; convert logical shape to shape
-        bmi _exit                       ; table entry negative? leave shape untouched
-        beq _printSprite                ; table entry 0 (player shape) -> don't change shape
-        sta zpShapeId                   ; current shape ID (enemy shape after conversion)
-_printSprite
-        stx zpPixelOffsetXlb            ; pixel position X
-        jsr setupSprite                 ; copy shape from zpShiftedShapeHopper to sprite definition memory
-                                        ; side effect: X = (2 * sprite number)
-        lda zpPixelOffsetXlb            ; pixel position X
-        clc
-        adc #$0c                        ; x-offset for sprites: 24/2
-        asl                             ; x-pos = 2 * A, MSB into carry
-        and #$f8
-        sta VicSprite0XPos,x            ; set sprite x position
-        bcc _clearXPosMsb               ; x pos < 256 ->
-_setXPosMsb
-        lda XPosMsbOraMask,x
-        ora VicSpritesXPosMsb           ; set the MSB bit for sprite X/2
-        sta VicSpritesXPosMsb
-        jmp _setSpriteYPos
-_clearXPosMsb
-        lda XPosMsbAndMask,x
-        and VicSpritesXPosMsb           ; clear the MSB bit for sprite X/2
-        sta VicSpritesXPosMsb
-
-_setSpriteYPos
-        lda zpPixelPosY                 ; pixel position Y
-        clc
-        adc #$32                        ; y-offset for sprites: 50
-        sta VicSprite0YPos,x            ; set sprite y position
-        lda VicSpriteToSpriteCol        ; read sprite-to-sprite collision registers
-        and #$01                        ; restrict to collisions with player involved
-        sta zpPlayerEnemyCollision      ; 0: no collision of player and enemy; 1: collision detected
-        pla
-        pla                             ; bail out of original print shape routine (use sprite instead)
-_exit
-        rts
-
-XPosMsbOraMask
-        XPosMsbAndMask = XPosMsbOraMask + 1
-
-        .byte $01,$fe                   ; SET and CLEAR masks for Sprite XPosMsb
-        .byte $02,$fd
-        .byte $04,$fb
-        .byte $08,$f7
-        .byte $10,$ef
-        .byte $20,$df
-        .byte $40,$bf
-        .byte $80,$7f
-
-logicalToShapeConvTbl
-; table: internal character set to shapes (???)
-        .byte $ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff   ; $00
-        .byte $0b,$00,$ff,$00,$00,$00,$00,$00   ; player shapes
-        .byte $00,$00,$00,$00,$00,$00,$00,$00   ; $10
-        .byte $00,$00,$00,$ff,$ff,$ff,$ff,$ff
-        .byte $ff,$ff,$ff,$ff,$ff,$00,$ff,$ff   ; $20
-        .byte $09,$10,$11,$0c,$0d,$15,$16,$17   ; enemy shape translations to player shapes
-        .byte $18,$19,$1a,$0e,$12,$14,$13,$ff   ; $30
-        .byte $ff
-
-setupSprite
-        pha                             ; store shape id
-        lda zpPixelOffsetXlb
-        and #$03
-        tax
-        jsr copyShapeToHopper
-        pla                             ; restore shape id
-        beq _copyShapeToSpriteBuffer    ; player sprite? ->
-        lda enemyIndex                  ; current enemy, index
-_copyShapeToSpriteBuffer
-        tax                             ; hardware sprite ID
-        lda tblSpritePtrLb,x            ; sprite pointer lb for sprite x
-        sta _writeSpriteDst+1           ; self-modifying write address
-        lda tblSpritePtrHb,x            ; sprite pointer hb for sprite x
-        sta _writeSpriteDst+2           ; self-modifying write address
-        lda tblSpriteNumber,x
-        tax
-
-        ldy #$20                        ; index: copy 33 bytes
-_copySpriteL
-        lda @w zpShiftedShapeHopper,y
-_writeSpriteDst
-        sta _writeSpriteDst,y           ; copy bytes to sprite buffer (self modified)
-        dey
-        bpl _copySpriteL
-
-        txa                             ; sprite number
-        asl                             ; as 16 bit offset
-        tax
-        rts
-.endcomment
-
-        ; sprite pointer locations
-tblSpritePtrLb
-        .byte $00,$40,$80,$c0,$00,$40   ; (sprite pointer low byte)
-
-tblSpritePtrHb
-        .byte $0c,$0c,$0c,$0c,$0d,$0d   ; (sprite pointer high byte)
-
-tblSpriteNumber
-        .byte $00,$02,$03,$04,$06,$07
 
 convertBoardPosToPixelPos
         lda pixelPosByBoardRow,y
@@ -6503,11 +6144,8 @@ getShapeBitmapOffsetX
         and #$03                        ; modulo-4 offset
         tax
         pla
+        lsr                             ; bitmap offset (byte)
         lsr
-        lsr
-;;;        asl                             ; convert to single pixel offset
-;;;        rol bitmapOffsetX+1             ; horizontal bitmap offset of shape (hb)
-;;;        and #$f8
         sta bitmapOffsetX+0             ; horizontal bitmap offset of shape (lb)
         rts
 
@@ -6537,17 +6175,6 @@ getCollisionBitmapPtr                   ; get bitmap pointer for pos X,Y on coll
         lda TblBmpLinePtrHb,y
         adc bitmapOffsetX+1             ; horizontal bitmap offset of shape (hb)
         ora #>collisionBitmap           ; collision bitmap page
-        sta zpBmpPtr+1
-        rts
-
-getBitmapPtr                            ; get bitmap pointer for pos X,Y on zpBitmapPage
-        lda TblBmpLinePtrLb,y
-        clc
-        adc bitmapOffsetX+0             ; horizontal bitmap offset of shape (lb)
-        sta zpBmpPtr+0
-        lda TblBmpLinePtrHb,y
-        adc bitmapOffsetX+1             ; horizontal bitmap offset of shape (hb)
-        ora zpBitmapPage                ; destination bitmap page ($20 or $40)
         sta zpBmpPtr+1
         rts
 
