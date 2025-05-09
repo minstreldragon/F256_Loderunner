@@ -1091,8 +1091,6 @@ SHFLAG = $028d                          ; Shift Flag (bit 0: SHIFT, bit 1: C=, b
 
 ;;; ScreenRAM = $0400
 ;;; SpritePtrs = $07f8                      ; sprite pointers location
-TblBmpLinePtrLb = $0e00                 ; Table: line to bitmap pointer (lb)
-TblBmpLinePtrHb = $0f00                 ; Table: line to bitmap pointer (hb)
 ;;;TblScreenLinePtrLb = $1380              ; Table: line to screen pointer (lb)
 ;;;TblScreenLinePtrHb = $1399              ; Table: line to screen pointer (hb)
 Bitmap0 = $2000

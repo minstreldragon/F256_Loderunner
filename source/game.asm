@@ -4,7 +4,7 @@
 ; .include "common/f256_rtc.asm"
 ; .include "constants.h"
 
-        * = $0080                       ; zero page variables
+        * = $0020                       ; zero page variables
 
 .include "zp.asm"
 
@@ -24,3 +24,7 @@ shapesF256
 titleScreenPacked
 .binary "../assets/lr_title.zx7"        ; title screen bitmap (packed)
 
+
+        .align $1000
+collisionBitmap
+        .fill $2000
