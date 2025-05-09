@@ -105,31 +105,7 @@ initF256                                ; initialize F256
         sta fillValue
         jsr clearBitmap1F256
 
-        ldy #200
-_drawPixelLoop
-        tya
-        pha
-        dey
-
-        tya
-        lsr
-        lsr
-        lsr
-        tax
-
-        tya
-        and #$07
-
-;        ldy #$00
-;        ldx #$00
-;        lda #$00
-        jsr setPixelF256
-        pla
-        tay
-        dey
-        bne _drawPixelLoop
-
-        jsr initSwapAreaC000            ; prepare $c000 for being uses as swap area
+        jsr initSwapAreaC000            ; prepare $c000 for being used as swap area
         jsr initSpritesF256
         jsr testSprites                 ; EXPERIMENTAL: test sprites
 
@@ -909,7 +885,7 @@ resetBigSwapArea
         lda #$b3                ; active MLUT = 3, Edit MLUT #3
         sta MMU_MEM_CTRL
 
-        lda #$08 >> 1
+        lda #$0a >> 1
         sta MMU_MEM_BANK_5      ; MMU Edit Register for bank 5 ($A000 - $BFFF)
         lda defaultBank6
         sta MMU_MEM_BANK_6      ; MMU Edit Register for bank 6 ($C000 - $DFFF)
@@ -1022,7 +998,7 @@ _initSpriteL
         sta VKY_SP0_AD_L,y
         lda #>spritesF256
         sta VKY_SP0_AD_M,y
-        lda #$00
+        lda #$03
         sta VKY_SP0_AD_H,y
 
         sta VKY_SP0_POS_X_L,y           ; initially hide sprite in the border
@@ -1085,7 +1061,7 @@ _printSpritePlayer
         jmp _printSpriteJ1
 _printSpriteEnemy
         ldx zpEnemyAnimPhase
-        lda _tabEnemyToPlayerPhase,x
+        lda tabEnemyToPlayerPhase,x
 
 _printSpriteJ1
         clc
@@ -1097,7 +1073,7 @@ _printSpriteJ1
 _spriteRegisterOffset
         .byte $00
 
-_tabEnemyToPlayerPhase
+tabEnemyToPlayerPhase
         .byte $00,$01,$02,$03,$04,$05,$07
         .byte $08,$09,$0a,$0b,$0c,$0d,$0f
         .byte $10,$11

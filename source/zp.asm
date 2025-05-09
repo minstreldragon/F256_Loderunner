@@ -15,11 +15,6 @@ zpFileSize                              ; File size (to save)
 
 ; Lode Runner (game)
 
-R6510                                   ; processor port ($01)
-        .byte ?
-
-        .byte ?
-
 zpPlayerX                               ; player, X position on board
         .byte ?                         ; $03
 
@@ -208,6 +203,7 @@ zpCircleTmpTimes4
 
         .byte ?                         ; $40
 
+zpShapeDataOffset                       ; current offset in sprite copy routine
 zpShapeDblPixelShift                    ; double-pixel shift applied to shape for printing
         .byte ?                         ; $41
 
@@ -287,9 +283,8 @@ zpDemoUnused                            ; variable unused (initialized to $01)
 zpEditorBoardUnchanged                  ; 0: board unchanged, 1: changes pending
         .byte ?                         ; $5a
 
-zpShiftedShapeHopper                    ; 33 bytes of shifted shape data
-        .fill 10                        ; $5b
-;        .fill 33                        ; $5b TODO: this variable should be removed
+zpShiftedShapeHopper                    ; 22 bytes of shifted shape data
+        .fill 22                        ; $5b
 
 zpSoundEffectPitch                      ; current pitch of sound effect
         .byte ?                         ; $7c

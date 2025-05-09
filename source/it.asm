@@ -768,12 +768,32 @@ initHwResources
         lda R6510                       ; processor port ($01)
         and #$fe                        ; disable BASIC, $a000-$bfff RAM
         sta R6510
+.endcomment
 
         lda #$00
         sta zpBmpLinePtrLb
         lda #$00
         sta zpBmpLinePtrHb
         ldy #$00                        ; table index
+
+        ldx #200
+_initTblsBmpLinePtrL
+        lda zpBmpLinePtrHb              ; write current line pointer to table (hb)
+        sta TblBmpLinePtrHb,y
+        lda zpBmpLinePtrLb              ; write current line pointer to table (lb)
+        sta TblBmpLinePtrLb,y
+
+        clc
+        adc #40                         ; next line: increment line pointer (lb)
+        sta zpBmpLinePtrLb
+        bcc _skipInc
+        inc zpBmpLinePtrHb              ; next line: increment line pointer (hb)
+_skipInc
+        iny                             ; inc. table index
+        dex                             ; dec. loop counter
+        bne _initTblsBmpLinePtrL        ; iterate over 200 lines (inner loop)
+
+.comment
         lda #25
         sta rowIterator                 ; row iterator for table init routine
 _initTblsBmpLinePtrL1
@@ -796,9 +816,11 @@ _initTblsBmpLinePtrL2
         sta zpBmpLinePtrHb
         dec rowIterator                 ; row iterator for table init routine
         bne _initTblsBmpLinePtrL1       ; iterate over 25 rows
+.endcomment
 
         ; init hardware resources
 
+.comment
         lda #<nmiHandler
         sta NMINV+0                     ; set NMI vector
         lda #>nmiHandler
@@ -1892,6 +1914,7 @@ tabKeyCodeToAscii
         .text "\*;",$ff,$ff,"=",$ff,"/1",$ff,$ff,"2 ",$ff,"Q",$ff
 
 setupBoard
+        jsr clearCollisionBitmap
         stx boardRequiresFullInit       ; 0: board has been initialized before, != 0: board requires full init
         ldx #$ff                        ; init value: player not found yet
         stx zpPlayerX                   ; player, X position on board
@@ -2506,6 +2529,7 @@ _initBoardContinue
 _initBoardDisplayEnemy
         jsr loadEnemyState              ; EXPERIMENTAL
         jsr prepareDisplayEnemy         ; EXPERIMENTAL
+        jsr drawSpriteToColBmp          ; EXPERIMENTAL draw enemy sprite into collision bitmap
         lda enemyIndex                  ; EXPERIMENTAL current enemy, index
         jsr printSpriteF256             ; EXPERIMENTAL
         jmp _initBoardContinue          ; EXPERIMENTAL
@@ -3691,15 +3715,14 @@ _checkPlayerAnimPhaseMax
 displayPlayerCheckEnemy                 ; display player, check for enemy collision
         jsr prepareDisplayPlayer
 ;;;        jsr pasteTileBitmap0            ; paste tile over bitmap 0 (no erase)
+        jsr checkPlayerGuardsCollision  ; check for collision of player with guards
         lda #$00                        ; EXPERIMENTAL
         jsr printSpriteF256             ; EXPERIMENTAL
-.comment
         lda zpPlayerEnemyCollision      ; 0: no collision of player and enemy; 1: collision detected
         beq _exit                       ; no collision -> exit
         lda playerNoGoldPickedUp        ; 0: gold pick up in process, 1: no gold picked up
         beq _exit                       ; player picked up gold in this round -> exit
         lsr playerAlive                 ; change to: 0: player dead (from 1: alive)
-.endcomment
 _exit
         rts
 
@@ -3979,7 +4002,7 @@ _handleEnemyNoFall
 
 handleEnemyFall
         jsr prepareDisplayEnemy
-        jsr cookieCutTileFromBuffer     ; cut out shape (A), add in shape from Bitmap1
+        jsr eraseSpriteFromColBmp       ; erase guard from collision bitmap
         jsr nudgeEnemyToStepXMiddle     ; nudge enemy towards StepX middle position, check gold
         lda #EN_ANIM_PHASE_FALL_LEFT
         ldy zpEnemyOrientation          ; $ff: enemy facing left, $01: facing right
@@ -4018,6 +4041,7 @@ _handleEnemyFallJ1
 displayEnemy
         jsr prepareDisplayEnemy
 ;;;        jsr pasteTileBitmap0            ; paste tile over bitmap 0 (no erase)
+        jsr drawSpriteToColBmp          ; EXPERIMENTAL draw enemy sprite into collision bitmap
         lda enemyIndex                  ; EXPERIMENTAL current enemy, index
         jsr printSpriteF256             ; EXPERIMENTAL
         jmp saveEnemyState
@@ -4105,6 +4129,7 @@ _handleEnemyFallJ3
         sta (zpBoardActionPtr),y
         jsr prepareDisplayEnemy
 ;;;        jsr pasteTileBitmap0            ; paste tile over bitmap 0 (no erase)
+        jsr drawSpriteToColBmp          ; EXPERIMENTAL draw enemy sprite into collision bitmap
         lda enemyIndex                  ; EXPERIMENTAL current enemy, index
         jsr printSpriteF256             ; EXPERIMENTAL
         jmp saveEnemyState
@@ -4113,12 +4138,13 @@ enemyTriesEscapeHole
         cpy #ENEMY_PIT_CTR_ESCAPE_START ; below this value, enemy climbs out of hole ($07)
         bcc enemyClimbsOutOfHole
         jsr prepareDisplayEnemy
-        jsr cookieCutTileFromBuffer     ; cut out shape (A), add in shape from Bitmap1
+        jsr eraseSpriteFromColBmp       ; erase guard from collision bitmap
         ldy zpEnemyActionCtr            ; current enemy, special action counter
         lda _tabEnemyInHoleWiggleX-7,y  ; make enemy wiggle in hole by altering zpEnemyStepX
         sta zpEnemyStepX                ; current enemy, X position (fine)
         jsr prepareDisplayEnemy
 ;;;        jsr pasteTileBitmap0            ; paste tile over bitmap 0 (no erase)
+        jsr drawSpriteToColBmp          ; EXPERIMENTAL draw enemy sprite into collision bitmap
         lda enemyIndex                  ; EXPERIMENTAL current enemy, index
         jsr printSpriteF256             ; EXPERIMENTAL
         jmp saveEnemyState
@@ -4181,7 +4207,7 @@ moveEnemyUp
 
 _moveEnemyUpOk
         jsr prepareDisplayEnemy
-        jsr cookieCutTileFromBuffer     ; cut out shape (A), add in shape from Bitmap1
+        jsr eraseSpriteFromColBmp       ; erase guard from collision bitmap
         jsr nudgeEnemyToStepXMiddle     ; nudge enemy towards StepX middle position
         ldy zpEnemyY                    ; current enemy, Y position on board
         lda boardActionOffsetLb,y
@@ -4226,6 +4252,7 @@ setEnemyAnimationClimb
         jsr updateEnemyAnimPhase
         jsr prepareDisplayEnemy
 ;;;        jsr pasteTileBitmap0            ; paste tile over bitmap 0 (no erase)
+        jsr drawSpriteToColBmp          ; EXPERIMENTAL draw enemy sprite into collision bitmap
         lda enemyIndex                  ; EXPERIMENTAL current enemy, index
         jsr printSpriteF256             ; EXPERIMENTAL
         jmp saveEnemyState
@@ -4256,7 +4283,7 @@ _moveEnemyDownBlocked
 
 _moveEnemyDownOk
         jsr prepareDisplayEnemy
-        jsr cookieCutTileFromBuffer     ; cut out shape (A), add in shape from Bitmap1
+        jsr eraseSpriteFromColBmp       ; erase guard from collision bitmap
         jsr nudgeEnemyToStepXMiddle     ; nudge enemy towards StepX middle position
         ldy zpEnemyY                    ; current enemy, Y position on board
         lda boardActionOffsetLb,y
@@ -4329,7 +4356,7 @@ _moveEnemyLeftBlocked
         jmp saveEnemyState
 _moveEnemyLeftOk
         jsr prepareDisplayEnemy
-        jsr cookieCutTileFromBuffer     ; cut out shape (A), add in shape from Bitmap1
+        jsr eraseSpriteFromColBmp       ; erase guard from collision bitmap
         jsr nudgeEnemyToStepYMiddle     ; nudge enemy towards StepY middle position
         lda #$ff                        ; orientation: facing left
         sta zpEnemyOrientation          ; $ff: enemy facing left, $01: facing right
@@ -4373,6 +4400,7 @@ _moveEnemyLeftAnimateJ1
         jsr updateEnemyAnimPhase
         jsr prepareDisplayEnemy
 ;;;        jsr pasteTileBitmap0            ; paste tile over bitmap 0 (no erase)
+        jsr drawSpriteToColBmp          ; EXPERIMENTAL draw enemy sprite into collision bitmap
         lda enemyIndex                  ; EXPERIMENTAL current enemy, index
         jsr printSpriteF256             ; EXPERIMENTAL
         jmp saveEnemyState
@@ -4409,7 +4437,7 @@ _moveEnemyRightBlocked
 
 _moveEnemyRightOk
         jsr prepareDisplayEnemy
-        jsr cookieCutTileFromBuffer     ; cut out shape (A), add in shape from Bitmap1
+        jsr eraseSpriteFromColBmp       ; erase guard from collision bitmap
         jsr nudgeEnemyToStepYMiddle     ; nudge enemy towards StepY middle position
         lda #$01                        ; orientation: facing right
         sta zpEnemyOrientation          ; $ff: enemy facing left, $01: facing right
@@ -4455,6 +4483,7 @@ _moveEnemyRightAnimateJ1
         jsr updateEnemyAnimPhase
         jsr prepareDisplayEnemy
 ;;;        jsr pasteTileBitmap0            ; paste tile over bitmap 0 (no erase)
+        jsr drawSpriteToColBmp          ; EXPERIMENTAL draw enemy sprite into collision bitmap
         lda enemyIndex                  ; EXPERIMENTAL current enemy, index
         jsr printSpriteF256             ; EXPERIMENTAL
         jmp saveEnemyState
@@ -5061,7 +5090,8 @@ prepareDisplayEnemy
         ldx zpEnemyStepY                ; current enemy, Y position (fine)
         jsr calcPixelPosY               ; calculate pixel position (Y)
         ldx zpEnemyAnimPhase            ; enemy animation phase
-        lda tabEnemyAnimPhaseToShape,x  ; get shape data offset from animation phase
+;;;        lda tabEnemyAnimPhaseToShape,x  ; get shape data offset from animation phase
+        lda tabEnemyToPlayerPhase,x     ; EXPERIMENTAL: get sprite shape from enemy animation phase
         ldx zpTmpPixelPosX              ; restore pixel position (X)
         rts
 
@@ -5312,7 +5342,7 @@ _killEnemyJ1
         stx enemyIndex                  ; current enemy, index
         jsr loadEnemyState              ; set enemy variables for current enemy ID from enemy object table
         jsr prepareDisplayEnemy
-        jsr cookieCutTileFromBuffer     ; cut out shape (A), add in shape from Bitmap1
+        jsr eraseSpriteFromColBmp       ; erase guard from collision bitmap
         ldx enemyIndex                  ; current enemy, index
 
         ; find a respawn location for enemy X
@@ -5449,6 +5479,7 @@ _enemyRespawnFinish
 ;;;        jsr replaceTileBitmap0          ; set enemy sprite
 
         jsr prepareDisplayEnemy         ; TODO EXPERIMENTAL
+        jsr drawSpriteToColBmp          ; EXPERIMENTAL draw enemy sprite into collision bitmap
         lda enemyIndex                  ; TODO EXPERIMENTAL current enemy, index
         jsr printSpriteF256             ; TODO EXPERIMENTAL
 
@@ -5934,8 +5965,121 @@ andMaskShiftTblRight
         .byte %00000011
         .byte %00000000
 
+
+eraseSpriteFromColBmp
+        sty zpPixelPosY                 ; pixel position Y
+        sta zpShapeId                   ; current shape ID
+        jsr getShapeBitmapOffsetX       ; calculate horizontal pixel position
+        jsr copyShapeToHopper           ; copy/shift the shape to zpShiftedShapeHopper
+        ldx #SHAPE_HEIGHT               ; iterate over shape height
+        stx zpShapeRowIter              ; iterator over rows in shape
+        ldx #$00                        ; index into shifted shape hopper
+_eraseSpriteL
+        ldy zpPixelPosY
+        jsr getCollisionBitmapPtr       ; get bitmap pointer for pos X,Y on collision bitmap
+        ldy #$00
+        lda zpShiftedShapeHopper,x      ; erase left half of shape from bitmap
+        eor #$ff                        ; invert shape on hopper
+        and (zpBmpPtr0),y               ; cut out shape from collision bitmap
+        sta (zpBmpPtr0),y               ; store back in collision bitmap
+        inx                             ; proceed to right byte of sprite
+        iny
+        lda zpShiftedShapeHopper,x      ; erase right half of shape from bitmap
+        eor #$ff
+        and (zpBmpPtr0),y
+        sta (zpBmpPtr0),y
+        inx                             ; continue with next byte on hopper
+        inc zpPixelPosY                 ; inc destination line
+        dec zpShapeRowIter              ; dec shape row iterator
+        bne _eraseSpriteL
+        rts
+
+drawSpriteToColBmp
+        sta zpShapeId                   ; current shape ID
+        txa
+        pha                             ; save X,Y for later sprite drawing
+        tya
+        pha
+        sty zpPixelPosY                 ; pixel position Y
+        jsr getShapeBitmapOffsetX       ; calculate horizontal pixel position
+        jsr copyShapeToHopper           ; copy/shift the shape to zpShiftedShapeHopper
+        ldx #SHAPE_HEIGHT               ; iterate over shape height
+        stx zpShapeRowIter              ; iterator over rows in shape
+        ldx #$00                        ; index into shifted shape hopper
+_drawSpriteL
+        ldy zpPixelPosY
+        jsr getCollisionBitmapPtr       ; get bitmap pointer for pos X,Y on collision bitmap
+        ldy #$00
+        lda zpShiftedShapeHopper,x      ; draw left half of shape onto bitmap
+        ora (zpBmpPtr0),y               ; paste shape into collision bitmap
+        sta (zpBmpPtr0),y
+        inx                             ; proceed to right byte of sprite
+        iny
+        lda zpShiftedShapeHopper,x      ; paste right half of shape onto bitmap
+        ora (zpBmpPtr0),y
+        sta (zpBmpPtr0),y
+        inx                             ; continue with next byte on hopper
+        inc zpPixelPosY                 ; inc destination line
+        dec zpShapeRowIter              ; dec shape row iterator
+        bne _drawSpriteL
+
+        pla                             ; restore X,Y (for drawing sprite)
+        tay
+        pla
+        tax
+        rts
+
+
+checkPlayerGuardsCollision
+        sta zpShapeId                   ; current shape ID
+        txa
+        pha                             ; save X,Y for later sprite drawing
+        tya
+        pha
+        sty zpPixelPosY                 ; pixel position Y
+        jsr getShapeBitmapOffsetX       ; calculate horizontal pixel position
+        jsr copyShapeToHopper           ; copy/shift the shape to zpShiftedShapeHopper
+        ldx #SHAPE_HEIGHT               ; iterate over shape height
+        stx zpShapeRowIter              ; iterator over rows in shape
+        ldx #$00                        ; index into shifted shape hopper
+        stx zpPlayerEnemyCollision      ; 0: no collision of player and enemy; 1: collision detected
+
+_checkPlayerGuardCollisionL1
+        ldy zpPixelPosY
+        jsr getCollisionBitmapPtr       ; get bitmap pointer for pos X,Y on collision bitmap
+        ldy #$00
+        lda zpShiftedShapeHopper,x      ; left half of player shape
+        and (zpBmpPtr0),y               ; check for collision with guard on collision bitmap
+        ora zpPlayerEnemyCollision
+        sta zpPlayerEnemyCollision
+        inx                             ; proceed to right byte of sprite
+        iny
+        lda zpShiftedShapeHopper,x      ; right half of player shape
+        and (zpBmpPtr0),y               ; check for collision with guard on collision bitmap
+        ora zpPlayerEnemyCollision
+        sta zpPlayerEnemyCollision
+        inx                             ; continue with next byte on hopper
+        inc zpPixelPosY                 ; inc destination line
+        dec zpShapeRowIter              ; dec shape row iterator
+        bne _checkPlayerGuardCollisionL1
+
+        lda zpPlayerEnemyCollision
+        beq _noCollision
+        lda #$01
+        sta zpPlayerEnemyCollision
+
+_noCollision
+        pla                             ; restore X,Y (for drawing sprite)
+        tay
+        pla
+        tax
+        rts
+
+
 cookieCutTileFromBuffer
         rts                             ; TODO EXPERIMENTAL
+
+.comment
         sty zpPixelPosY                 ; pixel position Y
         sta zpShapeId                   ; current shape ID
         jsr getShapeBitmapOffsetX       ; calculate horizontal pixel position
@@ -6005,10 +6149,12 @@ _copyShapeToBitmapL2
         bne _copyShapeToBitmapL2
         rts
 ;=============== end unreachable code ==============
+.endcomment
 
 pasteTileBitmap0                        ; paste tile over bitmap 0 (no erase)
         jsr replaceTileBm0              ; TODO EXPERIMENTAL F256: force printing tile on bitmap 0
         rts
+.comment
 ; print shape at pixel position (?)
 ; load shape into sprite data
         sty zpPixelPosY                 ; pixel position Y
@@ -6070,10 +6216,62 @@ _copyShapeToBitmapL2
         bne _copyShapeToBitmapL2
         rts
 ;=============== end unreachable code ==============
+.endcomment
 
 copyShapeToHopper                       ; copy/shift the shape to zpShiftedShapeHopper
+        lda #SHAPE_HEIGHT
+        sta zpShapeRowIter              ; iterator over rows in shape
+
+        ldy zpShapeId                   ; shape to print
+        lda anim_shapes_lo,y
+        sta zpWideShapePtr+0
+        lda anim_shapes_hi,y
+        sta zpWideShapePtr+1
+
+        ldy tabShapeShiftTablePage,x    ; x: # of double pixels to shift
+        sty _ldaShiftTableLeft1+2       ; Self-modifying code (selects shapeShiftTable for shift)
+        sty _ldaShiftTableLeft2+2       ; Self-modifying code
+        iny                             ; inc. shape shift table page (left byte -> right byte)
+        sty _ldaShiftTableRight1+2      ; Self-modifying code
+
+        ldx #$00
+        stx zpShapeDataOffset
+_copyShapeToHopperL
+        ldy zpShapeDataOffset           ; shape offset
+        lda (zpWideShapePtr),y          ; get shape byte (left)
+        iny
+        sty zpShapeDataOffset           ; store current shape offset
+        tay
+_ldaShiftTableLeft1
+        lda shapeShiftTables,y          ; shifted value, lb
+        sta zpShiftedShapeHopper+0,x    ; 33 byte of shifted shape data
+_ldaShiftTableRight1
+        lda shapeShiftTables,y          ; shifted value, hb
+        sta zpShiftedShapeHopper+1,x
+
+        ldy zpShapeDataOffset           ; shape offset
+        lda (zpWideShapePtr),y          ; get shape byte (right)
+        iny
+        sty zpShapeDataOffset           ; store current shape offset
+        tay
+_ldaShiftTableLeft2
+        lda shapeShiftTables,y          ; shifted value, lb
+        ora zpShiftedShapeHopper+1,x
+        sta zpShiftedShapeHopper+1,x
+
+        inx                             ; inc shape hopper index by 2
+        inx
+        dec zpShapeRowIter              ; dec shape row iterator
+        bne _copyShapeToHopperL
         rts
 
+tabShapeShiftTablePage
+        .byte >(shapeShiftTables+$0000) ; shift 0 pixels
+        .byte >(shapeShiftTables+$0200) ; shift 2 pixels
+        .byte >(shapeShiftTables+$0400) ; shift 4 pixels
+        .byte >(shapeShiftTables+$0600) ; shift 6 pixels
+
+.comment
                                         ; convert charset to shape id
 convertShapeOrPrintSprite
         lda skipShapeConversion         ; 0: don't skip shape conversion, >0: skip shape conversion
@@ -6173,6 +6371,7 @@ _writeSpriteDst
         asl                             ; as 16 bit offset
         tax
         rts
+.endcomment
 
         ; sprite pointer locations
 tblSpritePtrLb
@@ -6304,9 +6503,11 @@ getShapeBitmapOffsetX
         and #$03                        ; modulo-4 offset
         tax
         pla
-        asl                             ; convert to single pixel offset
-        rol bitmapOffsetX+1             ; horizontal bitmap offset of shape (hb)
-        and #$f8
+        lsr
+        lsr
+;;;        asl                             ; convert to single pixel offset
+;;;        rol bitmapOffsetX+1             ; horizontal bitmap offset of shape (hb)
+;;;        and #$f8
         sta bitmapOffsetX+0             ; horizontal bitmap offset of shape (lb)
         rts
 
@@ -6328,6 +6529,16 @@ getBitmapPtrLine                        ; get bitmap pointer for line Y on zpBit
         sta bitmapOffsetX+0             ; horizontal bitmap offset of shape (lb)
         sta bitmapOffsetX+1             ; horizontal bitmap offset of shape (hb)
 
+getCollisionBitmapPtr                   ; get bitmap pointer for pos X,Y on collision bitmap
+        lda TblBmpLinePtrLb,y
+        clc
+        adc bitmapOffsetX+0             ; horizontal bitmap offset of shape (lb)
+        sta zpBmpPtr+0
+        lda TblBmpLinePtrHb,y
+        adc bitmapOffsetX+1             ; horizontal bitmap offset of shape (hb)
+        ora #>collisionBitmap           ; collision bitmap page
+        sta zpBmpPtr+1
+        rts
 
 getBitmapPtr                            ; get bitmap pointer for pos X,Y on zpBitmapPage
         lda TblBmpLinePtrLb,y
@@ -6368,6 +6579,9 @@ clearBitmap0                            ; clear bitmap 0 and turn off sprites
         jsr clearBitmap0F256            ; F256: clear bitmap 0
         lda #$08                        ; TODO EXPERIMENTAL disable sprites
         jsr disableSpritesF256          ; TODO EXPERIMENTAL disable sprites
+        jsr clearCollisionBitmap
+        rts
+
 .comment
         lda #>Bitmap0                   ; start page
         ldx #$00
@@ -6378,6 +6592,11 @@ clearBitmap0                            ; clear bitmap 0 and turn off sprites
 clearBitmap1
         lda #>Bitmap1                   ; start page clear memory $4000-$5fff
         ldx #>(Bitmap1+$2000)           ; end page
+.endcomment
+
+clearCollisionBitmap
+        lda #>collisionBitmap
+        ldx #>(collisionBitmap+$2000)   ; end page
 
 clearMemory
         sta zpMemPtr+1                  ; A: start page
@@ -6391,7 +6610,6 @@ _clearMemoryLoop
         inc zpMemPtr+1
         cpx zpMemPtr+1                  ; X: end page
         bne _clearMemoryLoop
-.endcomment
         rts
 
 boardLayoutOffsetLb
@@ -7423,6 +7641,427 @@ jingle_9_data
 jingle_empty_data
         .byte $00
 
+anim_shapes_lo
+        .byte <anim_shape_0
+        .byte <anim_shape_1
+        .byte <anim_shape_2
+        .byte <anim_shape_3
+        .byte <anim_shape_4
+        .byte <anim_shape_5
+        .byte <anim_shape_6
+        .byte <anim_shape_7
+        .byte <anim_shape_8
+        .byte <anim_shape_9
+        .byte <anim_shape_10
+        .byte <anim_shape_11
+        .byte <anim_shape_12
+        .byte <anim_shape_13
+        .byte <anim_shape_14
+        .byte <anim_shape_15
+        .byte <anim_shape_16
+        .byte <anim_shape_17
+
+anim_shapes_hi
+        .byte >anim_shape_0
+        .byte >anim_shape_1
+        .byte >anim_shape_2
+        .byte >anim_shape_3
+        .byte >anim_shape_4
+        .byte >anim_shape_5
+        .byte >anim_shape_6
+        .byte >anim_shape_7
+        .byte >anim_shape_8
+        .byte >anim_shape_9
+        .byte >anim_shape_10
+        .byte >anim_shape_11
+        .byte >anim_shape_12
+        .byte >anim_shape_13
+        .byte >anim_shape_14
+        .byte >anim_shape_15
+        .byte >anim_shape_16
+        .byte >anim_shape_17
+
+anim_shape_0
+        .byte $10,$00                   ; "   X            "
+        .byte $38,$00                   ; "  XXX           "
+        .byte $38,$00                   ; "  XXX           "
+        .byte $1c,$00                   ; "   XXX          "
+        .byte $3b,$00                   ; "  XXX XX        "
+        .byte $cd,$80                   ; "XX  XX XX       "
+        .byte $0c,$00                   ; "    XX          "
+        .byte $1c,$00                   ; "   XXX          "
+        .byte $37,$80                   ; "  XX XXXX       "
+        .byte $30,$00                   ; "  XX            "
+        .byte $30,$00                   ; "  XX            "
+
+anim_shape_1
+        .byte $10,$00                   ; "   X            "
+        .byte $38,$00                   ; "  XXX           "
+        .byte $38,$00                   ; "  XXX           "
+        .byte $18,$00                   ; "   XX           "
+        .byte $1c,$00                   ; "   XXX          "
+        .byte $3e,$00                   ; "  XXXXX         "
+        .byte $de,$00                   ; "XX XXXX         "
+        .byte $38,$00                   ; "  XXX           "
+        .byte $3c,$00                   ; "  XXXX          "
+        .byte $0e,$00                   ; "    XXX         "
+        .byte $0c,$00                   ; "    XX          "
+
+anim_shape_2
+        .byte $10,$00                   ; "   X            "
+        .byte $38,$00                   ; "  XXX           "
+        .byte $38,$00                   ; "  XXX           "
+        .byte $18,$00                   ; "   XX           "
+        .byte $5e,$00                   ; " X XXXX         "
+        .byte $7b,$00                   ; " XXXX XX        "
+        .byte $18,$00                   ; "   XX           "
+        .byte $3c,$00                   ; "  XXXX          "
+        .byte $66,$00                   ; " XX  XX         "
+        .byte $63,$00                   ; " XX   XX        "
+        .byte $03,$00                   ; "      XX        "
+
+anim_shape_3
+        .byte $61,$80                   ; " XX    XX       "
+        .byte $61,$80                   ; " XX    XX       "
+        .byte $6d,$80                   ; " XX XX XX       "
+        .byte $3d,$80                   ; "  XXXX XX       "
+        .byte $0f,$00                   ; "    XXXX        "
+        .byte $06,$00                   ; "     XX         "
+        .byte $06,$00                   ; "     XX         "
+        .byte $07,$80                   ; "     XXXX       "
+        .byte $06,$c0                   ; "     XX XX      "
+        .byte $06,$c0                   ; "     XX XX      "
+        .byte $03,$40                   ; "      XX X      "
+
+anim_shape_4
+        .byte $18,$00                   ; "   XX           "
+        .byte $18,$00                   ; "   XX           "
+        .byte $1e,$00                   ; "   XXXX         "
+        .byte $0e,$00                   ; "    XXX         "
+        .byte $07,$80                   ; "     XXXX       "
+        .byte $06,$c0                   ; "     XX XX      "
+        .byte $06,$00                   ; "     XX         "
+        .byte $07,$00                   ; "     XXX        "
+        .byte $0d,$80                   ; "    XX XX       "
+        .byte $0d,$80                   ; "    XX XX       "
+        .byte $0d,$80                   ; "    XX XX       "
+
+anim_shape_5
+        .byte $06,$00                   ; "     XX         "
+        .byte $06,$00                   ; "     XX         "
+        .byte $1e,$00                   ; "   XXXX         "
+        .byte $dc,$00                   ; "XX XXX          "
+        .byte $78,$00                   ; " XXXX           "
+        .byte $18,$00                   ; "   XX           "
+        .byte $18,$00                   ; "   XX           "
+        .byte $1c,$00                   ; "   XXX          "
+        .byte $36,$00                   ; "  XX XX         "
+        .byte $36,$00                   ; "  XX XX         "
+        .byte $36,$00                   ; "  XX XX         "
+
+anim_shape_6
+        .byte $02,$00                   ; "      X         "
+        .byte $07,$00                   ; "     XXX        "
+        .byte $07,$00                   ; "     XXX        "
+        .byte $03,$00                   ; "      XX        "
+        .byte $0f,$c0                   ; "    XXXXXX      "
+        .byte $5b,$40                   ; " X XX XX X      "
+        .byte $43,$00                   ; " X    XX        "
+        .byte $07,$00                   ; "     XXX        "
+        .byte $0d,$80                   ; "    XX XX       "
+        .byte $0d,$80                   ; "    XX XX       "
+        .byte $0d,$80                   ; "    XX XX       "
+
+anim_shape_7
+        .byte $64,$c0                   ; " XX  X  XX      "
+        .byte $6e,$c0                   ; " XX XXX XX      "
+        .byte $6e,$c0                   ; " XX XXX XX      "
+        .byte $3f,$80                   ; "  XXXXXXX       "
+        .byte $06,$00                   ; "     XX         "
+        .byte $06,$00                   ; "     XX         "
+        .byte $1e,$00                   ; "   XXXX         "
+        .byte $36,$00                   ; "  XX XX         "
+        .byte $36,$00                   ; "  XX XX         "
+        .byte $36,$00                   ; "  XX XX         "
+        .byte $06,$00                   ; "     XX         "
+
+anim_shape_8
+        .byte $02,$00                   ; "      X         "
+        .byte $07,$00                   ; "     XXX        "
+        .byte $07,$00                   ; "     XXX        "
+        .byte $0e,$00                   ; "    XXX         "
+        .byte $37,$00                   ; "  XX XXX        "
+        .byte $6c,$c0                   ; " XX XX  XX      "
+        .byte $0c,$00                   ; "    XX          "
+        .byte $0e,$00                   ; "    XXX         "
+        .byte $7b,$00                   ; " XXXX XX        "
+        .byte $03,$00                   ; "      XX        "
+        .byte $03,$00                   ; "      XX        "
+
+anim_shape_9
+        .byte $02,$00                   ; "      X         "
+        .byte $07,$00                   ; "     XXX        "
+        .byte $07,$00                   ; "     XXX        "
+        .byte $06,$00                   ; "     XX         "
+        .byte $0e,$00                   ; "    XXX         "
+        .byte $1f,$00                   ; "   XXXXX        "
+        .byte $1e,$c0                   ; "   XXXX XX      "
+        .byte $07,$00                   ; "     XXX        "
+        .byte $0f,$00                   ; "    XXXX        "
+        .byte $1c,$00                   ; "   XXX          "
+        .byte $0c,$00                   ; "    XX          "
+
+anim_shape_10
+        .byte $02,$00                   ; "      X         "
+        .byte $07,$00                   ; "     XXX        "
+        .byte $07,$00                   ; "     XXX        "
+        .byte $06,$00                   ; "     XX         "
+        .byte $1e,$80                   ; "   XXXX X       "
+        .byte $37,$80                   ; "  XX XXXX       "
+        .byte $06,$00                   ; "     XX         "
+        .byte $0f,$00                   ; "    XXXX        "
+        .byte $19,$80                   ; "   XX  XX       "
+        .byte $31,$80                   ; "  XX   XX       "
+        .byte $30,$00                   ; "  XX            "
+
+anim_shape_11
+        .byte $61,$80                   ; " XX    XX       "
+        .byte $61,$80                   ; " XX    XX       "
+        .byte $6d,$80                   ; " XX XX XX       "
+        .byte $6f,$00                   ; " XX XXXX        "
+        .byte $3c,$00                   ; "  XXXX          "
+        .byte $18,$00                   ; "   XX           "
+        .byte $18,$00                   ; "   XX           "
+        .byte $78,$00                   ; " XXXX           "
+        .byte $d8,$00                   ; "XX XX           "
+        .byte $d8,$00                   ; "XX XX           "
+        .byte $b0,$00                   ; "X XX            "
+
+anim_shape_12
+        .byte $06,$00                   ; "     XX         "
+        .byte $06,$00                   ; "     XX         "
+        .byte $1e,$00                   ; "   XXXX         "
+        .byte $1c,$00                   ; "   XXX          "
+        .byte $78,$00                   ; " XXXX           "
+        .byte $d8,$00                   ; "XX XX           "
+        .byte $18,$00                   ; "   XX           "
+        .byte $38,$00                   ; "  XXX           "
+        .byte $6c,$00                   ; " XX XX          "
+        .byte $6c,$00                   ; " XX XX          "
+        .byte $6c,$00                   ; " XX XX          "
+
+anim_shape_13
+        .byte $18,$00                   ; "   XX           "
+        .byte $18,$00                   ; "   XX           "
+        .byte $1e,$00                   ; "   XXXX         "
+        .byte $0e,$c0                   ; "    XXX XX      "
+        .byte $07,$80                   ; "     XXXX       "
+        .byte $06,$00                   ; "     XX         "
+        .byte $06,$00                   ; "     XX         "
+        .byte $0e,$00                   ; "    XXX         "
+        .byte $1b,$00                   ; "   XX XX        "
+        .byte $1b,$00                   ; "   XX XX        "
+        .byte $1b,$00                   ; "   XX XX        "
+
+anim_shape_14
+        .byte $08,$00                   ; "    X           "
+        .byte $1c,$00                   ; "   XXX          "
+        .byte $1c,$00                   ; "   XXX          "
+        .byte $18,$00                   ; "   XX           "
+        .byte $7e,$00                   ; " XXXXXX         "
+        .byte $5b,$40                   ; " X XX XX X      "
+        .byte $18,$40                   ; "   XX    X      "
+        .byte $1c,$00                   ; "   XXX          "
+        .byte $36,$00                   ; "  XX XX         "
+        .byte $36,$00                   ; "  XX XX         "
+        .byte $36,$00                   ; "  XX XX         "
+
+anim_shape_15
+        .byte $c9,$80                   ; "XX  X  XX       "
+        .byte $dd,$80                   ; "XX XXX XX       "
+        .byte $dd,$80                   ; "XX XXX XX       "
+        .byte $7f,$00                   ; " XXXXXXX        "
+        .byte $18,$00                   ; "   XX           "
+        .byte $18,$00                   ; "   XX           "
+        .byte $1e,$00                   ; "   XXXX         "
+        .byte $1b,$00                   ; "   XX XX        "
+        .byte $1b,$00                   ; "   XX XX        "
+        .byte $1b,$00                   ; "   XX XX        "
+        .byte $18,$00                   ; "   XX           "
+
+anim_shape_16
+        .byte $0c,$00                   ; "    XX          "
+        .byte $0c,$40                   ; "    XX   X      "
+        .byte $0f,$c0                   ; "    XXXXXX      "
+        .byte $4e,$00                   ; " X  XXX         "
+        .byte $7e,$00                   ; " XXXXXX         "
+        .byte $0e,$00                   ; "    XXX         "
+        .byte $0e,$00                   ; "    XXX         "
+        .byte $1b,$00                   ; "   XX XX        "
+        .byte $1b,$80                   ; "   XX XXX       "
+        .byte $18,$00                   ; "   XX           "
+        .byte $38,$00                   ; "  XXX           "
+
+anim_shape_17
+        .byte $0c,$00                   ; "    XX          "
+        .byte $8c,$00                   ; "X   XX          "
+        .byte $fc,$00                   ; "XXXXXX          "
+        .byte $1c,$80                   ; "   XXX  X       "
+        .byte $1f,$80                   ; "   XXXXXX       "
+        .byte $1c,$00                   ; "   XXX          "
+        .byte $1c,$00                   ; "   XXX          "
+        .byte $36,$00                   ; "  XX XX         "
+        .byte $76,$00                   ; " XXX XX         "
+        .byte $06,$00                   ; "     XX         "
+        .byte $07,$00                   ; "     XXX        "
+
+
+        .align $100
+
+shapeShiftTables
+la000   ; shift 0 pixels, left
+        .byte $00,$01,$02,$03,$04,$05,$06,$07,$08,$09,$0a,$0b,$0c,$0d,$0e,$0f
+        .byte $10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$1a,$1b,$1c,$1d,$1e,$1f
+        .byte $20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$2a,$2b,$2c,$2d,$2e,$2f
+        .byte $30,$31,$32,$33,$34,$35,$36,$37,$38,$39,$3a,$3b,$3c,$3d,$3e,$3f
+        .byte $40,$41,$42,$43,$44,$45,$46,$47,$48,$49,$4a,$4b,$4c,$4d,$4e,$4f
+        .byte $50,$51,$52,$53,$54,$55,$56,$57,$58,$59,$5a,$5b,$5c,$5d,$5e,$5f
+        .byte $60,$61,$62,$63,$64,$65,$66,$67,$68,$69,$6a,$6b,$6c,$6d,$6e,$6f
+        .byte $70,$71,$72,$73,$74,$75,$76,$77,$78,$79,$7a,$7b,$7c,$7d,$7e,$7f
+        .byte $80,$81,$82,$83,$84,$85,$86,$87,$88,$89,$8a,$8b,$8c,$8d,$8e,$8f
+        .byte $90,$91,$92,$93,$94,$95,$96,$97,$98,$99,$9a,$9b,$9c,$9d,$9e,$9f
+        .byte $a0,$a1,$a2,$a3,$a4,$a5,$a6,$a7,$a8,$a9,$aa,$ab,$ac,$ad,$ae,$af
+        .byte $b0,$b1,$b2,$b3,$b4,$b5,$b6,$b7,$b8,$b9,$ba,$bb,$bc,$bd,$be,$bf
+        .byte $c0,$c1,$c2,$c3,$c4,$c5,$c6,$c7,$c8,$c9,$ca,$cb,$cc,$cd,$ce,$cf
+        .byte $d0,$d1,$d2,$d3,$d4,$d5,$d6,$d7,$d8,$d9,$da,$db,$dc,$dd,$de,$df
+        .byte $e0,$e1,$e2,$e3,$e4,$e5,$e6,$e7,$e8,$e9,$ea,$eb,$ec,$ed,$ee,$ef
+        .byte $f0,$f1,$f2,$f3,$f4,$f5,$f6,$f7,$f8,$f9,$fa,$fb,$fc,$fd,$fe,$ff
+la100   ; shift 0 pixels, right
+        .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
+        .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
+        .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
+        .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
+        .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
+        .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
+        .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
+        .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
+        .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
+        .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
+        .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
+        .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
+        .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
+        .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
+        .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
+        .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
+la200   ; shift 2 pixels, left
+        .byte $00,$00,$00,$00,$01,$01,$01,$01,$02,$02,$02,$02,$03,$03,$03,$03
+        .byte $04,$04,$04,$04,$05,$05,$05,$05,$06,$06,$06,$06,$07,$07,$07,$07
+        .byte $08,$08,$08,$08,$09,$09,$09,$09,$0a,$0a,$0a,$0a,$0b,$0b,$0b,$0b
+        .byte $0c,$0c,$0c,$0c,$0d,$0d,$0d,$0d,$0e,$0e,$0e,$0e,$0f,$0f,$0f,$0f
+        .byte $10,$10,$10,$10,$11,$11,$11,$11,$12,$12,$12,$12,$13,$13,$13,$13
+        .byte $14,$14,$14,$14,$15,$15,$15,$15,$16,$16,$16,$16,$17,$17,$17,$17
+        .byte $18,$18,$18,$18,$19,$19,$19,$19,$1a,$1a,$1a,$1a,$1b,$1b,$1b,$1b
+        .byte $1c,$1c,$1c,$1c,$1d,$1d,$1d,$1d,$1e,$1e,$1e,$1e,$1f,$1f,$1f,$1f
+        .byte $20,$20,$20,$20,$21,$21,$21,$21,$22,$22,$22,$22,$23,$23,$23,$23
+        .byte $24,$24,$24,$24,$25,$25,$25,$25,$26,$26,$26,$26,$27,$27,$27,$27
+        .byte $28,$28,$28,$28,$29,$29,$29,$29,$2a,$2a,$2a,$2a,$2b,$2b,$2b,$2b
+        .byte $2c,$2c,$2c,$2c,$2d,$2d,$2d,$2d,$2e,$2e,$2e,$2e,$2f,$2f,$2f,$2f
+        .byte $30,$30,$30,$30,$31,$31,$31,$31,$32,$32,$32,$32,$33,$33,$33,$33
+        .byte $34,$34,$34,$34,$35,$35,$35,$35,$36,$36,$36,$36,$37,$37,$37,$37
+        .byte $38,$38,$38,$38,$39,$39,$39,$39,$3a,$3a,$3a,$3a,$3b,$3b,$3b,$3b
+        .byte $3c,$3c,$3c,$3c,$3d,$3d,$3d,$3d,$3e,$3e,$3e,$3e,$3f,$3f,$3f,$3f
+la300   ; shift 2 pixels, right
+        .byte $00,$40,$80,$c0,$00,$40,$80,$c0,$00,$40,$80,$c0,$00,$40,$80,$c0
+        .byte $00,$40,$80,$c0,$00,$40,$80,$c0,$00,$40,$80,$c0,$00,$40,$80,$c0
+        .byte $00,$40,$80,$c0,$00,$40,$80,$c0,$00,$40,$80,$c0,$00,$40,$80,$c0
+        .byte $00,$40,$80,$c0,$00,$40,$80,$c0,$00,$40,$80,$c0,$00,$40,$80,$c0
+        .byte $00,$40,$80,$c0,$00,$40,$80,$c0,$00,$40,$80,$c0,$00,$40,$80,$c0
+        .byte $00,$40,$80,$c0,$00,$40,$80,$c0,$00,$40,$80,$c0,$00,$40,$80,$c0
+        .byte $00,$40,$80,$c0,$00,$40,$80,$c0,$00,$40,$80,$c0,$00,$40,$80,$c0
+        .byte $00,$40,$80,$c0,$00,$40,$80,$c0,$00,$40,$80,$c0,$00,$40,$80,$c0
+        .byte $00,$40,$80,$c0,$00,$40,$80,$c0,$00,$40,$80,$c0,$00,$40,$80,$c0
+        .byte $00,$40,$80,$c0,$00,$40,$80,$c0,$00,$40,$80,$c0,$00,$40,$80,$c0
+        .byte $00,$40,$80,$c0,$00,$40,$80,$c0,$00,$40,$80,$c0,$00,$40,$80,$c0
+        .byte $00,$40,$80,$c0,$00,$40,$80,$c0,$00,$40,$80,$c0,$00,$40,$80,$c0
+        .byte $00,$40,$80,$c0,$00,$40,$80,$c0,$00,$40,$80,$c0,$00,$40,$80,$c0
+        .byte $00,$40,$80,$c0,$00,$40,$80,$c0,$00,$40,$80,$c0,$00,$40,$80,$c0
+        .byte $00,$40,$80,$c0,$00,$40,$80,$c0,$00,$40,$80,$c0,$00,$40,$80,$c0
+        .byte $00,$40,$80,$c0,$00,$40,$80,$c0,$00,$40,$80,$c0,$00,$40,$80,$c0
+la400   ; shift 4 pixels, left
+        .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
+        .byte $01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01
+        .byte $02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02
+        .byte $03,$03,$03,$03,$03,$03,$03,$03,$03,$03,$03,$03,$03,$03,$03,$03
+        .byte $04,$04,$04,$04,$04,$04,$04,$04,$04,$04,$04,$04,$04,$04,$04,$04
+        .byte $05,$05,$05,$05,$05,$05,$05,$05,$05,$05,$05,$05,$05,$05,$05,$05
+        .byte $06,$06,$06,$06,$06,$06,$06,$06,$06,$06,$06,$06,$06,$06,$06,$06
+        .byte $07,$07,$07,$07,$07,$07,$07,$07,$07,$07,$07,$07,$07,$07,$07,$07
+        .byte $08,$08,$08,$08,$08,$08,$08,$08,$08,$08,$08,$08,$08,$08,$08,$08
+        .byte $09,$09,$09,$09,$09,$09,$09,$09,$09,$09,$09,$09,$09,$09,$09,$09
+        .byte $0a,$0a,$0a,$0a,$0a,$0a,$0a,$0a,$0a,$0a,$0a,$0a,$0a,$0a,$0a,$0a
+        .byte $0b,$0b,$0b,$0b,$0b,$0b,$0b,$0b,$0b,$0b,$0b,$0b,$0b,$0b,$0b,$0b
+        .byte $0c,$0c,$0c,$0c,$0c,$0c,$0c,$0c,$0c,$0c,$0c,$0c,$0c,$0c,$0c,$0c
+        .byte $0d,$0d,$0d,$0d,$0d,$0d,$0d,$0d,$0d,$0d,$0d,$0d,$0d,$0d,$0d,$0d
+        .byte $0e,$0e,$0e,$0e,$0e,$0e,$0e,$0e,$0e,$0e,$0e,$0e,$0e,$0e,$0e,$0e
+        .byte $0f,$0f,$0f,$0f,$0f,$0f,$0f,$0f,$0f,$0f,$0f,$0f,$0f,$0f,$0f,$0f
+la500   ; shift 4 pixels, right
+        .byte $00,$10,$20,$30,$40,$50,$60,$70,$80,$90,$a0,$b0,$c0,$d0,$e0,$f0
+        .byte $00,$10,$20,$30,$40,$50,$60,$70,$80,$90,$a0,$b0,$c0,$d0,$e0,$f0
+        .byte $00,$10,$20,$30,$40,$50,$60,$70,$80,$90,$a0,$b0,$c0,$d0,$e0,$f0
+        .byte $00,$10,$20,$30,$40,$50,$60,$70,$80,$90,$a0,$b0,$c0,$d0,$e0,$f0
+        .byte $00,$10,$20,$30,$40,$50,$60,$70,$80,$90,$a0,$b0,$c0,$d0,$e0,$f0
+        .byte $00,$10,$20,$30,$40,$50,$60,$70,$80,$90,$a0,$b0,$c0,$d0,$e0,$f0
+        .byte $00,$10,$20,$30,$40,$50,$60,$70,$80,$90,$a0,$b0,$c0,$d0,$e0,$f0
+        .byte $00,$10,$20,$30,$40,$50,$60,$70,$80,$90,$a0,$b0,$c0,$d0,$e0,$f0
+        .byte $00,$10,$20,$30,$40,$50,$60,$70,$80,$90,$a0,$b0,$c0,$d0,$e0,$f0
+        .byte $00,$10,$20,$30,$40,$50,$60,$70,$80,$90,$a0,$b0,$c0,$d0,$e0,$f0
+        .byte $00,$10,$20,$30,$40,$50,$60,$70,$80,$90,$a0,$b0,$c0,$d0,$e0,$f0
+        .byte $00,$10,$20,$30,$40,$50,$60,$70,$80,$90,$a0,$b0,$c0,$d0,$e0,$f0
+        .byte $00,$10,$20,$30,$40,$50,$60,$70,$80,$90,$a0,$b0,$c0,$d0,$e0,$f0
+        .byte $00,$10,$20,$30,$40,$50,$60,$70,$80,$90,$a0,$b0,$c0,$d0,$e0,$f0
+        .byte $00,$10,$20,$30,$40,$50,$60,$70,$80,$90,$a0,$b0,$c0,$d0,$e0,$f0
+        .byte $00,$10,$20,$30,$40,$50,$60,$70,$80,$90,$a0,$b0,$c0,$d0,$e0,$f0
+la600   ; shift 6 pixels, left
+        .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
+        .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
+        .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
+        .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
+        .byte $01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01
+        .byte $01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01
+        .byte $01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01
+        .byte $01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01
+        .byte $02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02
+        .byte $02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02
+        .byte $02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02
+        .byte $02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02
+        .byte $03,$03,$03,$03,$03,$03,$03,$03,$03,$03,$03,$03,$03,$03,$03,$03
+        .byte $03,$03,$03,$03,$03,$03,$03,$03,$03,$03,$03,$03,$03,$03,$03,$03
+        .byte $03,$03,$03,$03,$03,$03,$03,$03,$03,$03,$03,$03,$03,$03,$03,$03
+        .byte $03,$03,$03,$03,$03,$03,$03,$03,$03,$03,$03,$03,$03,$03,$03,$03
+la700   ; shift 6 pixels, right
+        .byte $00,$04,$08,$0c,$10,$14,$18,$1c,$20,$24,$28,$2c,$30,$34,$38,$3c
+        .byte $40,$44,$48,$4c,$50,$54,$58,$5c,$60,$64,$68,$6c,$70,$74,$78,$7c
+        .byte $80,$84,$88,$8c,$90,$94,$98,$9c,$a0,$a4,$a8,$ac,$b0,$b4,$b8,$bc
+        .byte $c0,$c4,$c8,$cc,$d0,$d4,$d8,$dc,$e0,$e4,$e8,$ec,$f0,$f4,$f8,$fc
+        .byte $00,$04,$08,$0c,$10,$14,$18,$1c,$20,$24,$28,$2c,$30,$34,$38,$3c
+        .byte $40,$44,$48,$4c,$50,$54,$58,$5c,$60,$64,$68,$6c,$70,$74,$78,$7c
+        .byte $80,$84,$88,$8c,$90,$94,$98,$9c,$a0,$a4,$a8,$ac,$b0,$b4,$b8,$bc
+        .byte $c0,$c4,$c8,$cc,$d0,$d4,$d8,$dc,$e0,$e4,$e8,$ec,$f0,$f4,$f8,$fc
+        .byte $00,$04,$08,$0c,$10,$14,$18,$1c,$20,$24,$28,$2c,$30,$34,$38,$3c
+        .byte $40,$44,$48,$4c,$50,$54,$58,$5c,$60,$64,$68,$6c,$70,$74,$78,$7c
+        .byte $80,$84,$88,$8c,$90,$94,$98,$9c,$a0,$a4,$a8,$ac,$b0,$b4,$b8,$bc
+        .byte $c0,$c4,$c8,$cc,$d0,$d4,$d8,$dc,$e0,$e4,$e8,$ec,$f0,$f4,$f8,$fc
+        .byte $00,$04,$08,$0c,$10,$14,$18,$1c,$20,$24,$28,$2c,$30,$34,$38,$3c
+        .byte $40,$44,$48,$4c,$50,$54,$58,$5c,$60,$64,$68,$6c,$70,$74,$78,$7c
+        .byte $80,$84,$88,$8c,$90,$94,$98,$9c,$a0,$a4,$a8,$ac,$b0,$b4,$b8,$bc
+        .byte $c0,$c4,$c8,$cc,$d0,$d4,$d8,$dc,$e0,$e4,$e8,$ec,$f0,$f4,$f8,$fc
+
+        .align $100
+TblBmpLinePtrLb
+        .fill $100
+
+TblBmpLinePtrHb
+        .fill $100
 
         .align $100
 
