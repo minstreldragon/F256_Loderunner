@@ -2644,8 +2644,6 @@ handlePlayerFall
         lda #$00
         sta playerNotFalling            ; 0: player is falling, >0: not falling
         dec soundFxFallingPitch         ; sound effect player falling, current pitch
-        jsr prepareDisplayPlayer
-        jsr cookieCutTileFromBuffer     ; cut out shape (A), add in shape from Bitmap1
         lda #ANIM_PHASE_FALL_LEFT
         ldx zpPlayerOrientation         ; $ff: player facing left, $01: facing right
         bmi _handlePlayerFallAnimate
@@ -2761,8 +2759,6 @@ _exitNoMove
         rts
 
 _handlePlayerLeftOk
-        jsr prepareDisplayPlayer
-        jsr cookieCutTileFromBuffer     ; cut out shape (A), add in shape from Bitmap1
         lda #PLAYER_FACING_LEFT         ; ($ff)
         sta zpPlayerOrientation         ; $ff: player facing left, $01: facing right
         jsr nudgePlayerToStepYMiddle    ; nudge player towards StepY middle position
@@ -2830,8 +2826,6 @@ _exitNoMove
         rts
 
 _handlePlayerRightOk
-        jsr prepareDisplayPlayer
-        jsr cookieCutTileFromBuffer     ; cut out shape (A), add in shape from Bitmap1
         lda #PLAYER_FACING_RIGHT        ; ($01)
         sta zpPlayerOrientation         ; $ff: player facing left, $01: facing right
         jsr nudgePlayerToStepYMiddle    ; nudge player towards StepY middle position
@@ -2921,8 +2915,6 @@ _handlePlayerUpCheckAbove
         beq _exitNoMove                 ; yes -> can't climb
 
 _handlePlayerUpOk
-        jsr prepareDisplayPlayer
-        jsr cookieCutTileFromBuffer     ; cut out shape (A), add in shape from Bitmap1
         ldy zpPlayerY                   ; player, Y position on board
         lda boardActionOffsetLb,y
         sta zpBoardActionPtr+0
@@ -2986,8 +2978,6 @@ _exitNoMove
         rts
 
 _handlePlayerDownOk
-        jsr prepareDisplayPlayer
-        jsr cookieCutTileFromBuffer     ; cut out shape (A), add in shape from Bitmap1
         ldy zpPlayerY                   ; player, Y position on board
         lda boardActionOffsetLb,y
         sta zpBoardActionPtr+0
@@ -3055,8 +3045,6 @@ continuePlayerDigLeft                   ; entry point: continue digging
         cmp #SHAPE_BLANK                ; field above dig location empty?
         bne _abortPlayerDigLeft         ; no -> (enemy above dig position) -> abort dig
 
-        jsr prepareDisplayPlayer
-        jsr cookieCutTileFromBuffer     ; cut out shape (A), add in shape from Bitmap1
         jsr nudgePlayerToStepXMiddle    ; nudge player towards StepX middle position
         jsr nudgePlayerToStepYMiddle    ; nudge player towards StepY middle position
         ldx zpHoleDigAnimCtr            ; animation counter for a hole being drilled
@@ -3073,27 +3061,23 @@ _playerDigLeftJ1
         beq finishPlayerDigLeft         ; yes -> digging the hole has finished
         cpx #DIG_ANIM_PHASE_LEFT_MIN    ; animation just started?
         beq _playerDigLeftJ2            ; yes -> skip erasing old animation
-        lda animDigUpperLeft-1,x
-        pha
         ldx zpPlayerX                   ; player, X position on board
         dex                             ; column left of player (above dig position)
+        stx zpCursorCol
         ldy zpPlayerY                   ; player, Y position on board
-        jsr convertBoardPosToPixelPos
-        pla
-        jsr cookieCutTileFromBuffer     ; cut out shape (A), add in shape from Bitmap1
+        sty zpCursorRow
+        lda #SHAPE_BLANK                ; print blank shape
+        jsr replaceTileBitmap1          ; (above dig position)
 
         ldx zpHoleDigAnimCtr            ; animation counter for a hole being drilled
 _playerDigLeftJ2
         lda animDigUpperLeft,x          ; (upper part, left)
-        pha
         ldx zpPlayerX                   ; player, X position on board
         dex
         stx zpCursorCol
         ldy zpPlayerY                   ; player, Y position on board
         sty zpCursorRow
-        jsr convertBoardPosToPixelPos
-        pla
-        jsr pasteTileBitmap0            ; paste tile over bitmap 0 (no erase)
+        jsr replaceTileBitmap1          ; print animation above dig position
 
         ldx zpHoleDigAnimCtr            ; animation counter for a hole being drilled
         lda animDigLower,x              ; (lower part)
@@ -3115,15 +3099,13 @@ _abortPlayerDigLeft
         jsr replaceTileBitmap0          ; replace dig position tile with SHAPE_FLOOR_DIG
         ldx zpHoleDigAnimCtr            ; animation counter for a hole being drilled
         beq abortPlayerDigLeftJ1        ; DIG_ANIM_PHASE_LEFT_MIN? -> just started digging
-        dex                             ; previous animation frame
-        lda animDigUpperLeft,x
-        pha
         ldy zpPlayerY                   ; player, Y position on board
+        sty zpCursorRow
         ldx zpPlayerX                   ; player, X position on board
         dex
-        jsr convertBoardPosToPixelPos
-        pla
-        jsr cookieCutTileFromBuffer     ; cut out shape (A), add in shape from Bitmap1
+        stx zpCursorCol
+        lda #SHAPE_BLANK                ; print blank shape
+        jsr replaceTileBitmap1          ; (above dig position)
 
 abortPlayerDigLeftJ1
         lda #$00
@@ -3168,8 +3150,6 @@ continuePlayerDigRight                  ; entry point: continue digging
         cmp #SHAPE_BLANK                ; field above dig location empty?
         bne _abortPlayerDigRight        ; no (enemy above dig position) -> abort dig
 
-        jsr prepareDisplayPlayer
-        jsr cookieCutTileFromBuffer     ; cut out shape (A), add in shape from Bitmap1
         jsr nudgePlayerToStepXMiddle    ; nudge player towards StepX middle position
         jsr nudgePlayerToStepYMiddle    ; nudge player towards StepY middle position
         ldx zpHoleDigAnimCtr            ; animation counter for a hole being drilled
@@ -3186,27 +3166,23 @@ _playerDigRightJ1
         beq finishPlayerDigRight        ; yes -> digging the hole has finished
         cpx #DIG_ANIM_PHASE_RIGHT_MIN   ; animation just started?
         beq _playerDigRightJ2           ; yes -> skip erasing old animation
-        lda animDigUpperRight-DIG_ANIM_PHASE_RIGHT_MIN-1,x
-        pha
         ldx zpPlayerX                   ; player, X position on board
         inx                             ; column right of player (above dig position)
+        stx zpCursorCol
         ldy zpPlayerY                   ; player, Y position on board
-        jsr convertBoardPosToPixelPos
-        pla
-        jsr cookieCutTileFromBuffer     ; cut out shape (A), add in shape from Bitmap1
+        sty zpCursorRow
+        lda #SHAPE_BLANK                ; print blank shape
+        jsr replaceTileBitmap1          ; (above dig position)
 
         ldx zpHoleDigAnimCtr            ; animation counter for a hole being drilled
 _playerDigRightJ2
         lda animDigUpperRight-DIG_ANIM_PHASE_RIGHT_MIN,x        ; (upper part)
-        pha
         ldx zpPlayerX                   ; player, X position on board
         inx
         stx zpCursorCol
         ldy zpPlayerY                   ; player, Y position on board
         sty zpCursorRow
-        jsr convertBoardPosToPixelPos
-        pla
-        jsr pasteTileBitmap0            ; paste tile over bitmap 0 (no erase)
+        jsr replaceTileBitmap1          ; print animation above dig position
 
         inc zpCursorRow
         ldx zpHoleDigAnimCtr            ; animation counter for a hole being drilled
@@ -3229,15 +3205,13 @@ _abortPlayerDigRight
         ldx zpHoleDigAnimCtr            ; animation counter for a hole being drilled
         cpx #DIG_ANIM_PHASE_RIGHT_MIN
         beq abortPlayerDigRightJ2       ; just started digging? ->
-        dex                             ; previous animation frame
-        lda animDigUpperRight-DIG_ANIM_PHASE_RIGHT_MIN,x
-        pha
         ldx zpPlayerX                   ; player, X position on board
         inx
+        stx zpCursorCol
         ldy zpPlayerY                   ; player, Y position on board
-        jsr convertBoardPosToPixelPos
-        pla
-        jsr cookieCutTileFromBuffer     ; cut out shape (A), add in shape from Bitmap1
+        sty zpCursorRow
+        lda #SHAPE_BLANK                ; print blank shape
+        jsr replaceTileBitmap1          ; (above dig position)
 
 abortPlayerDigRightJ2
         lda #$00
@@ -3657,12 +3631,7 @@ _goldJingleData
         sty zpCursorCol
         lda #SHAPE_BLANK
         sta (zpBoardLayoutPtr),y        ; remove gold chest from board
-        jsr replaceTileBitmap1          ; print blank shape to buffer bitmap
-        ldy zpCursorRow
-        ldx zpCursorCol
-        jsr convertBoardPosToPixelPos   ; return: (X,Y) pixel coordinates
-        lda #SHAPE_GOLD_CHEST
-        jsr cookieCutTileFromBuffer     ; cut out shape (A), add in shape from Bitmap1
+        jsr replaceTileBitmap1          ; print blank shape
         ldy #>SCORE_PICK_UP_GOLD        ; score for picking up a gold chest: 0250
         lda #<SCORE_PICK_UP_GOLD
         jsr addPrintScore
@@ -5092,12 +5061,7 @@ enemyCheckPickupGold                    ; check for and pickup gold
         sty zpCursorRow
         ldy zpEnemyX                    ; current enemy, X position on board
         sty zpCursorCol
-        jsr replaceTileBitmap1
-        ldy zpCursorRow
-        ldx zpCursorCol
-        jsr convertBoardPosToPixelPos
-        lda #SHAPE_GOLD_CHEST
-        jmp cookieCutTileFromBuffer     ; cut out shape (A), add in shape from Bitmap1
+        jsr replaceTileBitmap1          ; replace chest tile by blank
 _exit
         rts
 
@@ -5233,11 +5197,6 @@ _handleHoleJ1
         lda #ANIM_CLOSE_HOLE_0          ; closing hole animation phase #0
 _animateClosingHole
         jsr replaceTileBitmap1          ; update tile in buffer bitmap
-        ldx zpCursorCol
-        ldy zpCursorRow
-        jsr convertBoardPosToPixelPos
-        lda #SHAPE_BLANK
-        jsr cookieCutTileFromBuffer     ; cut out shape (A), add in shape from Bitmap1
 
 _continueNextHoleJmp
         jmp _continueNextHole
@@ -5841,15 +5800,7 @@ _detectedUserInputEvent
         rts
 
 replaceTileBitmap0
-        sta zpShapeId                   ; current shape Id (before conversion)
-        lda #>Bitmap0                   ; print to Bitmap0
-        bne printTileJ1
-
 replaceTileBitmap1
-        sta zpShapeId                   ; current shape Id (before conversion)
-        lda #>Bitmap1                   ; print to Bitmap1
-printTileJ1
-        lda zpShapeId                   ; F256: force printing tile on bitmap 0
         jsr replaceTileBm0              ; F256: force printing tile on bitmap 0
         rts
 
@@ -5962,9 +5913,6 @@ _noCollision
         pla
         tax
         rts
-
-cookieCutTileFromBuffer
-        rts                             ; TODO EXPERIMENTAL
 
 pasteTileBitmap0                        ; paste tile over bitmap 0 (no erase)
         jsr replaceTileBm0              ; TODO EXPERIMENTAL F256: force printing tile on bitmap 0
